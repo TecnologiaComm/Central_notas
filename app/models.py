@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, create_engine, select
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from .config import settings
@@ -150,6 +150,8 @@ class Nota(Base):
     decisao_em: Mapped[datetime | None] = mapped_column(DateTime)
     comentario_aprovacao: Mapped[str] = mapped_column(Text, default="")
     pasta: Mapped[str] = mapped_column(Text, default="")
+    protheus_doc: Mapped[str] = mapped_column(String(80), default="")  # "DOC/SERIE (recno N)" após lançar
+    protheus_erro: Mapped[str] = mapped_column(Text, default="")  # último erro; bloqueia o lançamento automático
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -201,11 +203,27 @@ def _num(v: str) -> float | None:
         return None
 
 
+def _adicionar_colunas_novas() -> None:
+    """create_all não altera tabelas existentes: inclui colunas novas em bancos criados por versões anteriores."""
+    insp = inspect(engine)
+    with engine.begin() as con:
+        for tabela in Base.metadata.sorted_tables:
+            if not insp.has_table(tabela.name):
+                continue
+            existentes = {c["name"] for c in insp.get_columns(tabela.name)}
+            for col in tabela.columns:
+                if col.name not in existentes:
+                    tipo = col.type.compile(dialect=engine.dialect)
+                    padrao = " DEFAULT ''" if isinstance(col.type, (String, Text)) else ""
+                    con.execute(text(f'ALTER TABLE {tabela.name} ADD {col.name} {tipo}{padrao}'))
+
+
 def iniciar_banco() -> None:
     if _url.startswith("sqlite:///"):
         from pathlib import Path
         Path(_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
+    _adicionar_colunas_novas()
     from .config import fornecedores_iniciais, historico_inicial
     with SessionLocal() as db:
         for f in fornecedores_iniciais():

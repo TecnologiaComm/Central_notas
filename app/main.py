@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 
-from . import aprovacao, conferencia, planilha, sugestao
+from . import aprovacao, conferencia, planilha, protheus, sugestao
 from .config import empresas, filiais, settings
 from .graph import cliente
 from .ingest import verificar_caixa
@@ -33,6 +33,7 @@ def verificar_com_trava() -> dict:
         return {"ocupado": True}
     try:
         r = verificar_caixa()
+        r["protheus"] = protheus.lancar_pendentes()  # só age com PROTHEUS_LANCAR_AUTOMATICO=true
         planilha.atualizar_arquivo()
         return r
     finally:
@@ -62,7 +63,8 @@ tpl.env.filters["brl"] = brl
 tpl.env.filters["data"] = lambda d: d.strftime("%d/%m/%Y") if d else "—"
 tpl.env.filters["datahora"] = lambda d: d.strftime("%d/%m/%Y %H:%M") if d else "—"
 tpl.env.globals.update(Status=Status, hoje=date.today, DESPESAS=DESPESAS, STATUS_CHAMADO=STATUS_CHAMADO,
-                       STATUS_NOTA=STATUS_NOTA)
+                       STATUS_NOTA=STATUS_NOTA, protheus_habilitado=protheus.habilitado,
+                       protheus_rotina=protheus.rotina)
 
 CLASSE_STATUS = {
     Status.CONFERENCIA: "amarelo", Status.AGUARDANDO: "azul", Status.APROVADA: "verde",
@@ -150,7 +152,13 @@ async def acao_nota(request: Request, nota_id: int):
             elif acao == "lancamento":
                 conferencia.salvar_lancamento(db, nota, form, quem)
                 flash = "Dados de lançamento salvos"
+            elif acao == "protheus":
+                ret = protheus.lancar(db, nota, quem)
+                flash = f"Lançada no Protheus: {nota.protheus_doc}" + (" (já existia)" if ret.ja_existia else "")
             db.commit()
+        except protheus.ErroProtheus as e:
+            db.commit()  # mantém o erro registrado na nota e no histórico
+            flash = f"Erro: {e}"
         except Exception as e:
             db.rollback()
             flash = f"Erro: {e}"
@@ -231,6 +239,9 @@ def decidir(request: Request, nota_id: int, e: str = Form(...), s: str = Form(..
         nota = db.get(Nota, nota_id)
         ok = aprovacao.registrar_decisao(db, nota, e, acao == "aprovar", comentario, "botão do e-mail")
         db.commit()
+        if ok and acao == "aprovar":
+            protheus.lancar_pendentes()
+            db.refresh(nota)
         _ = nota.documentos
         resp = tpl.TemplateResponse(request, "aprovacao.html", {
             "n": nota, "e": e, "s": s, "acao": acao, "concluido": ok})

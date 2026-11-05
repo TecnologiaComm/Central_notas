@@ -78,6 +78,20 @@ def test_fluxo_completo():
             n = db.get(Nota, t.id)
             assert n.status == Status.APROVADA and n.aprovado_por == "rbastos@commcenter.com.br"
 
+        # NOVATECH aprovada: lançamento no Protheus (simulador do MODO_DEMO)
+        c.post(f"/nota/{novo.id}", data={"acao": "protheus"}, follow_redirects=False)
+        with SessionLocal() as db:
+            n = db.get(Nota, novo.id)
+            assert n.status == Status.LANCADA and n.status_nota == "NF LANÇADA"
+            assert n.protheus_doc.startswith("000000120/1") and n.pc and not n.protheus_erro
+        enviado = json.loads((RAIZ / "data" / "demo_protheus" / f"CNOTAS-{novo.id}.json").read_text())
+        assert (enviado["empresa"], enviado["filial"], enviado["fornecedor"], enviado["loja"]) == ("03", "01", "ZNOVA1", "01")
+        assert enviado["itens"][0]["centroCusto"] == "9915" and enviado["vencimento"] == "20261106"
+        # Reenviar uma nota já lançada não duplica
+        c.post(f"/nota/{novo.id}", data={"acao": "protheus"})
+        with SessionLocal() as db:
+            assert sum(ev.acao == "Lançada no Protheus" for ev in db.get(Nota, novo.id).eventos) == 1
+
         # Lançamento: PC + chamado; "NF LANÇADA" fecha a nota
         c.post(f"/nota/{t.id}", data={"acao": "lancamento", "pc": "004790", "chamado": "3182700",
                                        "status_chamado": "ENCERRADO", "status_nota": "NF LANÇADA",

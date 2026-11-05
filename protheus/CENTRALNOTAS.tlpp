@@ -1,0 +1,204 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#include "protheus.ch"
+
+/*/{Protheus.doc} CNOTDOCE
+Central de Notas – Comm: lançamento de Documento de Entrada (MATA103) ou pré-nota (MATA140)
+a partir das notas aprovadas no app.
+
+POST /rest/centralnotas/v1/documento-entrada
+Cabeçalho tenantId: "<grupo>,<filial>"  (ex.: "02,02") — o AppServer REST abre o ambiente nessa empresa/filial.
+Corpo: JSON montado por app/protheus.py (montar_payload).
+
+Respostas:
+  200 {"sucesso":true, "documento":"000054321", "serie":"1", "recno":123, "pedidoCompra":"", "jaExistia":false}
+  422 {"sucesso":false, "mensagem":"...", "detalhe":"<log do ExecAuto>"}
+
+>>> VALIDAR COM A CONSULTORIA TOTVS antes de produção: campos obrigatórios da SF1/SD1 no ambiente,
+    TES de serviço, retenções (ISS/PIS/COFINS/CSLL/IR), natureza e amarração com pedido de compra.
+
+Publicação: compilar no RPO e garantir que o serviço REST do AppServer (appserver.ini, seção HTTPREST/
+HTTPURI) atende o prefixo /rest com autenticação habilitada (Basic ou OAuth2) e um usuário de integração
+com acesso às rotinas MATA103/MATA140.
+/*/
+@Post(endpoint="/centralnotas/v1/documento-entrada", description="Central de Notas - documento de entrada")
+User Function CNOTDOCE()
+    Local oBody     := JsonObject():New()
+    Local cErroJson := ""
+    Local oResp     := JsonObject():New()
+
+    cErroJson := oBody:FromJson(oRest:getBodyRequest())
+    If !Empty(cErroJson)
+        Return Responder(400, .F., "JSON inválido: " + cErroJson, "")
+    EndIf
+
+    oResp := LancarNota(oBody)
+    oRest:setKeyHeaderResponse("Content-Type", "application/json")
+    oRest:setStatusCode(IIf(oResp["sucesso"], 200, 422))
+    oRest:setResponse(oResp:ToJson())
+Return .T.
+
+
+Static Function LancarNota(oBody)
+    Local oResp    := JsonObject():New()
+    Local cRotina  := Upper(AllTrim(oBody["rotina"]))
+    Local cDoc     := PadR(oBody["documento"], TamSX3("F1_DOC")[1])
+    Local cSerie   := PadR(oBody["serie"], TamSX3("F1_SERIE")[1])
+    Local cFornece := PadR(oBody["fornecedor"], TamSX3("F1_FORNECE")[1])
+    Local cLoja    := PadR(oBody["loja"], TamSX3("F1_LOJA")[1])
+    Local aCab     := {}
+    Local aItens   := {}
+    Local aLinha   := {}
+    Local oItem
+    Local nI       := 0
+    Local aLog     := {}
+    Local cLog     := ""
+
+    Private lMsErroAuto    := .F.
+    Private lMsHelpAuto    := .T.
+    Private lAutoErrNoFile := .T.
+
+    // tenantId não abriu o ambiente certo? (cEmpAnt/cFilAnt vêm do cabeçalho)
+    If AllTrim(cEmpAnt) != AllTrim(oBody["empresa"]) .Or. AllTrim(cFilAnt) != AllTrim(oBody["filial"])
+        Return Resposta(.F., "Ambiente aberto em " + cEmpAnt + "/" + cFilAnt + ;
+            ", esperado " + oBody["empresa"] + "/" + oBody["filial"] + " (confira o cabeçalho tenantId)", "")
+    EndIf
+
+    // Fornecedor
+    SA2->(DbSetOrder(1)) // A2_FILIAL+A2_COD+A2_LOJA
+    If !SA2->(DbSeek(xFilial("SA2") + cFornece + cLoja))
+        Return Resposta(.F., "Fornecedor " + AllTrim(cFornece) + "/" + AllTrim(cLoja) + " não encontrado na SA2", "")
+    EndIf
+    If !Empty(oBody["cnpjFornecedor"]) .And. AllTrim(SA2->A2_CGC) != AllTrim(oBody["cnpjFornecedor"])
+        Return Resposta(.F., "CNPJ do fornecedor " + AllTrim(cFornece) + " (" + AllTrim(SA2->A2_CGC) + ;
+            ") difere do CNPJ da nota (" + oBody["cnpjFornecedor"] + ")", "")
+    EndIf
+
+    // Idempotência: documento já existe -> devolve o existente
+    SF1->(DbSetOrder(1)) // F1_FILIAL+F1_DOC+F1_SERIE+F1_FORNECE+F1_LOJA+F1_TIPO
+    If SF1->(DbSeek(xFilial("SF1") + cDoc + cSerie + cFornece + cLoja))
+        oResp := Resposta(.T., "Documento já existia", "")
+        oResp["documento"]  := AllTrim(SF1->F1_DOC)
+        oResp["serie"]      := AllTrim(SF1->F1_SERIE)
+        oResp["recno"]      := SF1->(Recno())
+        oResp["jaExistia"]  := .T.
+        oResp["pedidoCompra"] := PedidoDaNota()
+        Return oResp
+    EndIf
+
+    aAdd(aCab, {"F1_TIPO",    "N",                          Nil})
+    aAdd(aCab, {"F1_FORMUL",  "N",                          Nil})
+    aAdd(aCab, {"F1_DOC",     cDoc,                         Nil})
+    aAdd(aCab, {"F1_SERIE",   cSerie,                       Nil})
+    aAdd(aCab, {"F1_EMISSAO", SToD(oBody["emissao"]),       Nil})
+    aAdd(aCab, {"F1_FORNECE", cFornece,                     Nil})
+    aAdd(aCab, {"F1_LOJA",    cLoja,                        Nil})
+    aAdd(aCab, {"F1_ESPECIE", oBody["especie"],             Nil})
+    If !Empty(oBody["condicaoPagamento"])
+        aAdd(aCab, {"F1_COND", oBody["condicaoPagamento"],  Nil})
+    EndIf
+    If !Empty(oBody["chaveAcesso"])
+        aAdd(aCab, {"F1_CHVNFE", oBody["chaveAcesso"],      Nil})
+    EndIf
+    If cRotina == "MATA103" .And. !Empty(oBody["natureza"])
+        aAdd(aCab, {"E2_NATUREZ", oBody["natureza"],        Nil})
+    EndIf
+
+    For nI := 1 To Len(oBody["itens"])
+        oItem  := oBody["itens"][nI]
+        aLinha := {}
+        aAdd(aLinha, {"D1_ITEM",  StrZero(nI, TamSX3("D1_ITEM")[1]), Nil})
+        aAdd(aLinha, {"D1_COD",   PadR(oItem["produto"], TamSX3("D1_COD")[1]), Nil})
+        aAdd(aLinha, {"D1_QUANT", oItem["quantidade"],    Nil})
+        aAdd(aLinha, {"D1_VUNIT", oItem["valorUnitario"], Nil})
+        aAdd(aLinha, {"D1_TOTAL", oItem["valorTotal"],    Nil})
+        If cRotina == "MATA103" .And. !Empty(oItem["tes"])
+            aAdd(aLinha, {"D1_TES", oItem["tes"],         Nil})
+        EndIf
+        aAdd(aLinha, {"D1_CC",    oItem["centroCusto"],   Nil})
+        aAdd(aLinha, {"D1_CONTA", oItem["contaContabil"], Nil})
+        If !Empty(oItem["pedidoCompra"])
+            aAdd(aLinha, {"D1_PEDIDO", oItem["pedidoCompra"], Nil})
+        EndIf
+        aAdd(aItens, aLinha)
+    Next nI
+
+    Begin Transaction
+        If cRotina == "MATA140"
+            MSExecAuto({|x, y, z| MATA140(x, y, z)}, aCab, aItens, 3)
+        Else
+            MSExecAuto({|x, y, z| MATA103(x, y, z)}, aCab, aItens, 3)
+        EndIf
+        If lMsErroAuto
+            DisarmTransaction()
+        EndIf
+    End Transaction
+
+    If lMsErroAuto
+        aLog := GetAutoGRLog()
+        For nI := 1 To Len(aLog)
+            cLog += AllTrim(aLog[nI]) + " "
+        Next nI
+        Return Resposta(.F., "ExecAuto " + cRotina + " recusou o documento", AllTrim(cLog))
+    EndIf
+
+    SF1->(DbSetOrder(1))
+    SF1->(DbSeek(xFilial("SF1") + cDoc + cSerie + cFornece + cLoja))
+    If cRotina == "MATA103" .And. !Empty(oBody["vencimento"])
+        AjustaVencimento(SToD(oBody["vencimento"]))
+    EndIf
+
+    oResp := Resposta(.T., cRotina + " incluído", "")
+    oResp["documento"]    := AllTrim(SF1->F1_DOC)
+    oResp["serie"]        := AllTrim(SF1->F1_SERIE)
+    oResp["recno"]        := SF1->(Recno())
+    oResp["jaExistia"]    := .F.
+    oResp["pedidoCompra"] := PedidoDaNota()
+Return oResp
+
+
+// Parcela única: alinha o vencimento do título (SE2) ao vencimento do boleto lido pelo app.
+Static Function AjustaVencimento(dVenc)
+    Local cChave := xFilial("SE2") + SF1->F1_PREFIXO + SF1->F1_DUPL
+    Local nTit   := 0
+    SE2->(DbSetOrder(1)) // E2_FILIAL+E2_PREFIXO+E2_NUM+E2_PARCELA+E2_TIPO+E2_FORNECE+E2_LOJA
+    If Empty(SF1->F1_DUPL) .Or. !SE2->(DbSeek(cChave))
+        Return
+    EndIf
+    While !SE2->(Eof()) .And. SE2->(E2_FILIAL + E2_PREFIXO + E2_NUM) == cChave
+        If SE2->E2_FORNECE == SF1->F1_FORNECE .And. SE2->E2_LOJA == SF1->F1_LOJA
+            nTit++
+        EndIf
+        SE2->(DbSkip())
+    EndDo
+    If nTit == 1 .And. SE2->(DbSeek(cChave))
+        RecLock("SE2", .F.)
+        SE2->E2_VENCTO  := dVenc
+        SE2->E2_VENCREA := DataValida(dVenc, .T.)
+        SE2->(MsUnlock())
+    EndIf
+Return
+
+
+Static Function PedidoDaNota()
+    Local cPedido := ""
+    SD1->(DbSetOrder(1)) // D1_FILIAL+D1_DOC+D1_SERIE+D1_FORNECE+D1_LOJA
+    If SD1->(DbSeek(xFilial("SD1") + SF1->(F1_DOC + F1_SERIE + F1_FORNECE + F1_LOJA)))
+        cPedido := AllTrim(SD1->D1_PEDIDO)
+    EndIf
+Return cPedido
+
+
+Static Function Resposta(lOk, cMsg, cDetalhe)
+    Local oResp := JsonObject():New()
+    oResp["sucesso"]  := lOk
+    oResp["mensagem"] := cMsg
+    oResp["detalhe"]  := cDetalhe
+Return oResp
+
+
+Static Function Responder(nStatus, lOk, cMsg, cDetalhe)
+    oRest:setKeyHeaderResponse("Content-Type", "application/json")
+    oRest:setStatusCode(nStatus)
+    oRest:setResponse(Resposta(lOk, cMsg, cDetalhe):ToJson())
+Return .T.

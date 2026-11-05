@@ -26,7 +26,8 @@ COLUNAS = [
 CONTROLE = [
     ("ID APP", "id", 8), ("ABA", None, 14), ("ETAPA NO APP", "status", 22), ("PRESTADOR", "prestador", 18),
     ("NFS", "numero", 12), ("RAZÃO SOCIAL", "razao_social", 40), ("CNPJ", "cnpj_emitente", 16),
-    ("APROVADO POR", "aprovado_por", 28), ("DATA DECISÃO", "decisao_em", 16), ("PASTA DOS ARQUIVOS", "pasta", 50),
+    ("APROVADO POR", "aprovado_por", 28), ("DATA DECISÃO", "decisao_em", 16), ("DOC. PROTHEUS", "protheus_doc", 22),
+    ("PASTA DOS ARQUIVOS", "pasta", 50),
 ]
 
 
