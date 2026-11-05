@@ -22,8 +22,8 @@ AZUL, AZUL2, CINZA, LINHA = colors.HexColor("#1F3864"), colors.HexColor("#2E5597
 FUNDO, VERDE, AMAR = colors.HexColor("#F2F5FA"), colors.HexColor("#1A7F37"), colors.HexColor("#B54708")
 
 st = {
-    "h1": ParagraphStyle("h1", fontName="DVB", fontSize=15, textColor=AZUL, spaceBefore=6, spaceAfter=8, leading=19),
-    "h2": ParagraphStyle("h2", fontName="DVB", fontSize=11.5, textColor=AZUL2, spaceBefore=10, spaceAfter=5, leading=15),
+    "h1": ParagraphStyle("h1", fontName="DVB", fontSize=15, textColor=AZUL, spaceBefore=6, spaceAfter=8, leading=19, keepWithNext=1),
+    "h2": ParagraphStyle("h2", fontName="DVB", fontSize=11.5, textColor=AZUL2, spaceBefore=10, spaceAfter=5, leading=15, keepWithNext=1),
     "p": ParagraphStyle("p", fontName="DV", fontSize=9.5, leading=13.5, spaceAfter=5, alignment=TA_LEFT),
     "sub": ParagraphStyle("sub", fontName="DV", fontSize=8.5, leading=12, textColor=CINZA),
     "cel": ParagraphStyle("cel", fontName="DV", fontSize=8.5, leading=11.5),
@@ -102,14 +102,12 @@ s += [P("1. Resumo", "h1"),
       tabela(["Parte", "Situação"], [
           ["App (fase 1): caixa, anexos, nomenclatura, planilha, sugestões, alertas, aprovação",
            "<font color='#1A7F37'><b>Pronto</b></font> · testado em modo demo"],
-          ["Integração com o Protheus (fase 2): lançamento no Documento de Entrada via REST",
-           "<font color='#B54708'><b>Código pronto</b></font> · falta compilar e homologar com a TOTVS"],
           ["Versão Azure: login Microsoft, SharePoint, carga pela web, publicação automática",
            "<font color='#B54708'><b>Código pronto</b></font> · falta criar os recursos e configurar"],
-          ["Testes automáticos", "19 testes passando (fluxo completo, regras, Protheus, login, SharePoint, carga)"],
+          ["Testes automáticos", "13 testes passando (fluxo completo, regras, login, SharePoint, carga)"],
       ], [112 * mm, 62 * mm]),
       Spacer(1, 6),
-      caixa("<b>Importante:</b> nada foi testado ainda com a caixa real, o Azure real, o SharePoint real ou o Protheus. "
+      caixa("<b>Importante:</b> nada foi testado ainda com a caixa real, o Azure real ou o SharePoint real. "
             "Os testes usam simuladores. Os próximos passos (seção 4) são justamente ligar cada peça ao ambiente da Comm.",
             AMAR)]
 
@@ -121,7 +119,7 @@ s += [P("2. Como era × como fica", "h1"),
           ["3", "Salvar e renomear os arquivos", "<b>Automático</b>: PRESTADOR_NFouFT_NÚMERO_EMPRESA (+ _BOLETO / _MC) em &lt;EMPRESA&gt;/&lt;AAAA-MM&gt;/ e cópia no SharePoint."],
           ["4", "Preencher a linha da planilha", "<b>Semiautomático</b>: empresa/filial pelo CNPJ do tomador; prestador e código Protheus pelo CNPJ do prestador; despesa, produto, CC e conta pelo histórico. O analista confere."],
           ["5", "Enviar e-mail pedindo aprovação", "<b>Um clique</b>: e-mail ao Robson com anexos e botões “De acordo / Não de acordo” (ou ele responde “De acordo”)."],
-          ["6", "Lançar no Protheus", "<b>Um clique</b> (fase 2): Documento de Entrada via REST; PC, documento e status preenchidos sozinhos."],
+          ["6", "Lançar no Protheus", "<b>Continua manual</b>: depois do “de acordo”, o analista lança no Protheus e registra no app PC, chamado, status e data. Com “NF LANÇADA”, a nota sai da fila."],
       ], [8 * mm, 58 * mm, 108 * mm]),
       P("Fluxo de etapas da nota", "h2"),
       P("Em conferência → Aguardando aprovação → Aprovada / Reprovada → NF lançada  (ou Ignorada, quando não é nota)", "code"),
@@ -140,14 +138,7 @@ s += B(["Leitura da caixa pelo <b>Microsoft Graph</b> (permissões de aplicativo
         "Sugestões a partir do histórico (cerca de 730 lançamentos de jul/25 a nov/26 da planilha atual).",
         "Pedido de “de acordo” com links assinados (o Safe Links do Outlook não aprova sozinho) e leitura das respostas por e-mail.",
         "<b>Planilha</b> com uma aba por mês nas mesmas 17 colunas de hoje + aba “Controle app”; cópia sempre atualizada."])
-s += [P("3.2 Integração com o Protheus (fase 2)", "h2")]
-s += B(["Botão <b>“Lançar no Protheus”</b> na nota aprovada; lançamento automático opcional (desligado por padrão).",
-        "Endpoint REST do lado Protheus (<b>protheus/CENTRALNOTAS.tlpp</b>) com MsExecAuto <b>MATA103</b> (Documento de Entrada) "
-        "ou <b>MATA140</b> (pré-nota), conferência de fornecedor/CNPJ na SA2 e ajuste do vencimento na SE2.",
-        "Sem duplicar: se o documento já existe na SF1, o Protheus devolve o existente.",
-        "Erros do ExecAuto aparecem na nota e no histórico, com botão “Tentar de novo”.",
-        "Mapeamentos em <b>config/protheus.yaml</b>: grupo de empresa por sigla, TES, condição de pagamento, natureza."])
-s += [P("3.3 Versão Azure", "h2")]
+s += [P("3.2 Versão Azure", "h2")]
 s += B(["<b>Login com a conta Microsoft da Comm</b>: o histórico registra o e-mail real de quem conferiu e aprovou; "
         "lista opcional de usuários permitidos.",
         "<b>SharePoint</b>: arquivos renomeados e a planilha CONTROLE_NOTAS.xlsx copiados para a biblioteca; reenvio automático se falhar.",
@@ -160,8 +151,7 @@ s += [Spacer(1, 4), P("Arquitetura", "h2"),
         "&nbsp;&nbsp;├─ login Microsoft (Entra ID)<br/>"
         "&nbsp;&nbsp;├─ Microsoft Graph: caixa prestacaocontasti@ (ler e enviar)<br/>"
         "&nbsp;&nbsp;├─ Microsoft Graph: SharePoint (arquivos e planilha)<br/>"
-        "&nbsp;&nbsp;├─ /home/data: banco SQLite + arquivos<br/>"
-        "&nbsp;&nbsp;└─ Protheus REST (fase 2)", "code")]
+        "&nbsp;&nbsp;└─ /home/data: banco SQLite + arquivos", "code")]
 
 # ---------------------------------------------------------------- 4. O que precisamos fazer
 CK = "☐"
@@ -206,19 +196,12 @@ s += [bloco("Passo 1 – Decidir os nomes e valores", "Renan / time administrati
     "Menu “Carga da planilha”: enviar a planilha atual (aba Infos + abas mensais).",
     "“Verificar e-mails agora” e conferir as primeiras notas (empresa, filial, fornecedor, CC, conta).",
     "Rodar <b>alguns dias só conferindo</b>, sem pedir “de acordo”, e anotar o que precisar ajustar.",
-    "Depois, liberar o envio do “de acordo” ao Robson."]),
-      bloco("Passo 6 – Protheus (fase 2)", "Controladoria + consultoria TOTVS", [
-    "Validar <b>config/protheus.yaml</b>: códigos de grupo de empresa (hoje 01 a 05 são palpites), tamanho da filial, "
-    "TES, condição de pagamento e natureza.",
-    "Decidir a rotina: <b>MATA103</b> (lança direto) ou <b>MATA140</b> (pré-nota para o fiscal classificar).",
-    "Revisar e compilar <b>protheus/CENTRALNOTAS.tlpp</b> no RPO, publicar no REST e criar usuário de integração.",
-    "Validar retenções (ISS, PIS, COFINS, CSLL, IR) e a amarração com pedido de compra.",
-    "Homologar em base de teste; preencher <b>PROTHEUS_URL / USUARIO / SENHA</b>; só depois ligar o lançamento automático."])]
+    "Depois, liberar o envio do “de acordo” ao Robson."])]
 
 # ---------------------------------------------------------------- 5. Atenção
 s += [P("5. Pontos de atenção", "h1"),
       tabela(["Ponto", "O que fazer"], [
-          ["Valores de exemplo", "Nome do site SharePoint, biblioteca e códigos do Protheus no config são exemplos: confirmar antes de usar."],
+          ["Valores de exemplo", "Nome do site SharePoint e da biblioteca são exemplos: confirmar antes de usar."],
           ["Uma instância só", "Não ligar escala horizontal no App Service: a verificação da caixa roda dentro do app."],
           ["Banco", "SQLite em /home/data atende o volume atual. Se crescer, migrar para Azure SQL ou PostgreSQL (DATABASE_URL)."],
           ["Segredo do cliente", "Tem validade: anotar a data e renovar antes de vencer (senão o app para de ler a caixa)."],
@@ -231,8 +214,7 @@ s += [P("6. Cronograma sugerido", "h1"),
       tabela(["Quando", "O quê", "Quem"], [
           ["Semana 1", "Passos 1 a 4: registro no M365, Azure, GitHub e merge na main", "TI + Renan"],
           ["Semana 2", "Passo 5: carga da planilha e alguns dias só conferindo a caixa real", "Time administrativo"],
-          ["Semana 3", "Ajustes do que apareceu na conferência; liberar o “de acordo” ao Robson", "Renan + Robson"],
-          ["Semanas 4–6", "Passo 6: homologação do Protheus em base de teste e virada para produção", "Controladoria + TOTVS"],
+          ["Semana 3", "Ajustes do que apareceu na conferência; liberar o “de acordo” ao Robson e usar no dia a dia", "Renan + Robson"],
       ], [26 * mm, 108 * mm, 40 * mm], destaque_col0=True)]
 
 doc = SimpleDocTemplate(sys.argv[1], pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm,

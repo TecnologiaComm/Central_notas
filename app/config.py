@@ -46,25 +46,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     modelo_ia: str = "claude-sonnet-4-5"
 
-    # Protheus (fase 2) — endpoint REST customizado (ver protheus/CENTRALNOTAS.tlpp)
-    protheus_url: str = ""  # ex.: http://protheus.comm.local:8181/rest
-    protheus_endpoint: str = "/centralnotas/v1/documento-entrada"
-    protheus_auth: str = "basic"  # basic | oauth2
-    protheus_usuario: str = ""
-    protheus_senha: str = ""
-    protheus_timeout_s: int = 120
-    protheus_verificar_tls: bool = True
-    protheus_lancar_automatico: bool = False  # lança sozinho as notas aprovadas
-
-
-@lru_cache
-def protheus_cfg() -> dict:
-    """Mapeamentos de negócio para o Protheus (config/protheus.yaml)."""
-    caminho = PASTA_CONFIG / "protheus.yaml"
-    if not caminho.exists():
-        return {}
-    return yaml.safe_load(caminho.read_text(encoding="utf-8")) or {}
-
 
 @lru_cache
 def settings() -> Settings:
@@ -88,7 +69,6 @@ def arquivo_config(nome: str) -> Path | None:
 def recarregar_config() -> None:
     filiais.cache_clear()
     regras_aprovacao.cache_clear()
-    protheus_cfg.cache_clear()
 
 
 def _so_digitos(v: str | None) -> str:

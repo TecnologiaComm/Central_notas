@@ -88,22 +88,6 @@
   </form>
   {% endif %}
 
-  {% if protheus_habilitado() and (n.status == Status.APROVADA or n.protheus_doc or n.protheus_erro) %}
-  <form method="post" class="card">
-    <h2>Protheus</h2>
-    {% if n.protheus_doc %}
-      <p>✅ Lançada no Protheus ({{ protheus_rotina() }}): <b>{{ n.protheus_doc }}</b>{% if n.pc %} · PC {{ n.pc }}{% endif %}</p>
-    {% else %}
-      {% if n.protheus_erro %}<div class="alerta">⚠ Último envio falhou: {{ n.protheus_erro }}</div>{% endif %}
-      <p class="sub">Envia fornecedor/loja, filial, documento, série, emissão, valor, produto, CC, conta e vencimento
-        para o {{ 'Documento de Entrada (MATA103)' if protheus_rotina() == 'MATA103' else 'pré-nota (MATA140)' }}.
-        Confira os dados da linha antes de enviar.</p>
-      <div class="acoes"><button class="btn pri" name="acao" value="protheus"
-        onclick="return confirm('Lançar a nota #{{ n.id }} no Protheus?')">{{ 'Tentar de novo' if n.protheus_erro else 'Lançar no Protheus' }}</button></div>
-    {% endif %}
-  </form>
-  {% endif %}
-
   <div class="card">
     <h2>Histórico</h2>
     <ul class="hist">

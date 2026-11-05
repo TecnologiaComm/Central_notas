@@ -60,7 +60,7 @@ Falta (ver README, "Publicar no Azure"):
      e "Tokens de ID" marcado (Autenticação).
   2. Segredos do app:
        az webapp config appsettings set -g $GRUPO -n $APP --settings GRAPH_CLIENT_SECRET=<segredo> MICROSOFT_PROVIDER_AUTHENTICATION_SECRET=<segredo>
-     e as opcionais (SHAREPOINT_SITE, USUARIOS_PERMITIDOS, ANTHROPIC_API_KEY, PROTHEUS_*).
+     e as opcionais (SHAREPOINT_SITE, USUARIOS_PERMITIDOS, ANTHROPIC_API_KEY).
   3. GitHub Actions: baixar o perfil de publicação
        az webapp deployment list-publishing-profiles -g $GRUPO -n $APP --xml
      e salvar como segredo AZURE_WEBAPP_PUBLISH_PROFILE; criar a variável AZURE_WEBAPP_NAME=$APP.

@@ -151,8 +151,6 @@ class Nota(Base):
     comentario_aprovacao: Mapped[str] = mapped_column(Text, default="")
     pasta: Mapped[str] = mapped_column(Text, default="")
     pasta_sharepoint: Mapped[str] = mapped_column(Text, default="")  # link da pasta no SharePoint
-    protheus_doc: Mapped[str] = mapped_column(String(80), default="")  # "DOC/SERIE (recno N)" após lançar
-    protheus_erro: Mapped[str] = mapped_column(Text, default="")  # último erro; bloqueia o lançamento automático
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 

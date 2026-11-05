@@ -22,7 +22,7 @@ Ingestão ── classifica anexos e lê os dados (XML NF-e/NFS-e > IA opcional 
    ▼
 [Aprovada] ── analista lança no Protheus e preenche PC, chamado, status chamado/nota e data
    ▼
-[NF lançada] ── botão "Lançar no Protheus" (MATA103 via REST) ou status "NF LANÇADA" preenchido à mão
+[NF lançada] ── quando o status da nota vira "NF LANÇADA"
 ```
 
 ## A planilha
@@ -61,10 +61,8 @@ O banco carrega esses arquivos na primeira execução. Para recarregar, apague `
 | `app/naming.py` / `app/conferencia.py` | Nomenclatura, pastas, salvar conferência/lançamento e memorizar |
 | `app/aprovacao.py` | E-mail de "de acordo", links assinados e leitura das respostas |
 | `app/planilha.py` | Exportação no layout das abas mensais |
-| `app/protheus.py` | Lançamento da nota aprovada no Protheus via REST (mais um simulador para o modo demo) |
-| `protheus/CENTRALNOTAS.tlpp` | Endpoint REST do lado Protheus (MsExecAuto MATA103/MATA140) — compilar no RPO |
 | `azure/provisionar.sh`, `startup.sh`, `.github/workflows/azure.yml` | Criação do App Service, inicialização e publicação automática |
-| `config/` | Filiais, fornecedores, histórico, regra de aprovação (`aprovacao.yaml`: Robson) e mapeamento do Protheus (`protheus.yaml`) |
+| `config/` | Filiais, fornecedores, histórico, regra de aprovação (`aprovacao.yaml`: Robson) |
 
 ## Testar sem credenciais (modo demo)
 ```bash
@@ -74,7 +72,7 @@ echo MODO_DEMO=true > .env
 uvicorn app.main:app --port 8000       # http://localhost:8000 → "Verificar e-mails agora"
 pytest -q
 ```
-No modo demo, os e-mails "enviados" ficam em `data/demo_enviados/` e os lançamentos simulados no Protheus em `data/demo_protheus/`.
+No modo demo, os e-mails "enviados" ficam em `data/demo_enviados/`.
 
 ## Publicar no Azure (recomendado)
 O app roda no **Azure App Service**, no mesmo tenant do Microsoft 365: vira um site com login da conta da Comm,
@@ -87,8 +85,7 @@ Azure App Service (Linux, Python, B1 com Always On) ◀────────�
   https://central-notas-comm.azurewebsites.net   (login Microsoft – Entra ID)
    ├── Microsoft Graph: lê/envia e-mails da prestacaocontasti@
    ├── Microsoft Graph: copia os arquivos renomeados e a planilha para o SharePoint
-   ├── /home/data: banco (SQLite) + cópia de trabalho dos arquivos (disco persistente do App Service)
-   └── Protheus REST (fase 2, opcional)
+   └── /home/data: banco (SQLite) + cópia de trabalho dos arquivos (disco persistente do App Service)
 ```
 
 ### 1. Registro do app no Microsoft Entra ID (admin do M365) — o mesmo para Outlook, SharePoint e login
@@ -129,7 +126,6 @@ o App Service Python 3.12, a verificação de saúde em `/saude`, HTTPS obrigat�
 | `SHAREPOINT_BIBLIOTECA` / `SHAREPOINT_PASTA` | biblioteca e pasta raiz (padrão `Documentos` / `Notas`) |
 | `USUARIOS_PERMITIDOS` | opcional: `renan@commcenter.com.br, @financeiro.commcenter.com.br` (o aprovador sempre abre o próprio link) |
 | `ANTHROPIC_API_KEY` | opcional: leitura por IA de PDFs sem XML |
-| `PROTHEUS_*` | opcional: ver "Integração com o Protheus" |
 
 ### 4. Publicação automática pelo GitHub
 1. Baixar o perfil de publicação: App Service → **Visão geral → Baixar perfil de publicação**
@@ -166,30 +162,6 @@ o App Service Python 3.12, a verificação de saúde em `/saude`, HTTPS obrigat�
 - O Robson também pode responder o e-mail com "De acordo".
 - O `sendMail` do Graph aceita anexos de até ~3 MB cada.
 
-## Integração com o Protheus (fase 2)
-Depois do "de acordo", a nota pode ser lançada no Protheus direto pelo app.
-
-```
-app (nota aprovada) ──POST JSON──▶ /rest/centralnotas/v1/documento-entrada  (cabeçalho tenantId: grupo,filial)
-                                    └─ CENTRALNOTAS.tlpp → MsExecAuto MATA103 (ou MATA140) → SF1/SD1/SE2
-                     ◀── {documento, série, recno, pedidoCompra} ── grava "Doc. Protheus", PC e status "NF LANÇADA"
-```
-
-1. **Lado Protheus (TI/consultoria TOTVS):** compilar `protheus/CENTRALNOTAS.tlpp` no RPO, publicar no serviço REST do AppServer
-   e criar um usuário de integração com acesso ao MATA103/MATA140. Validar TES, condição de pagamento, natureza e retenções.
-2. **`config/protheus.yaml`:** rotina (`MATA103` lança direto; `MATA140` gera pré-nota para o fiscal classificar),
-   grupo de empresa de cada sigla (VMT, AXT...), tamanho da filial/documento e TES/condição/natureza padrão (também por empresa).
-   Loja diferente de `01`: cadastrar o código do fornecedor como `10DS6V/02`.
-3. **`.env`:** `PROTHEUS_URL` (ex.: `http://protheus:8181/rest`), `PROTHEUS_AUTH` (`basic` ou `oauth2`), `PROTHEUS_USUARIO`, `PROTHEUS_SENHA`.
-   `PROTHEUS_LANCAR_AUTOMATICO=true` lança sozinho as notas aprovadas (a cada verificação e logo após o clique de aprovação).
-
-Comportamento:
-- O app valida antes de enviar (empresa, filial, fornecedor, NFS, valor, produto, CC, conta e vencimento).
-- O endpoint confere fornecedor/CNPJ na SA2 e é **idempotente**: se o documento já existe na SF1, devolve o existente.
-- Com parcela única, o vencimento do título na SE2 é alinhado ao vencimento do boleto.
-- Erro do ExecAuto aparece na nota e no histórico; o lançamento automático não insiste até alguém clicar em "Tentar de novo".
-- A aba **Controle app** da planilha ganhou a coluna **DOC. PROTHEUS**.
-
 ## Próximos passos
 1. Rodar alguns dias lendo a caixa real, só conferindo, sem pedir de acordo.
-2. Homologar o endpoint do Protheus em base de teste com a consultoria TOTVS (rotina, TES, retenções) e depois ligar o lançamento automático.
+2. O lançamento no Protheus continua manual: depois do "de acordo", o analista lança e preenche PC, chamado e status no app.
