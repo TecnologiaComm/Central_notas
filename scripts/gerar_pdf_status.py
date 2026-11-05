@@ -22,7 +22,7 @@ AZUL, AZUL2, CINZA, LINHA = colors.HexColor("#1F3864"), colors.HexColor("#2E5597
 FUNDO, VERDE, AMAR = colors.HexColor("#F2F5FA"), colors.HexColor("#1A7F37"), colors.HexColor("#B54708")
 
 st = {
-    "h1": ParagraphStyle("h1", fontName="DVB", fontSize=15, textColor=AZUL, spaceBefore=6, spaceAfter=8, leading=19, keepWithNext=1),
+    "h1": ParagraphStyle("h1", fontName="DVB", fontSize=15, textColor=AZUL, spaceBefore=6, spaceAfter=8, leading=19),
     "h2": ParagraphStyle("h2", fontName="DVB", fontSize=11.5, textColor=AZUL2, spaceBefore=10, spaceAfter=5, leading=15, keepWithNext=1),
     "p": ParagraphStyle("p", fontName="DV", fontSize=9.5, leading=13.5, spaceAfter=5, alignment=TA_LEFT),
     "sub": ParagraphStyle("sub", fontName="DV", fontSize=8.5, leading=12, textColor=CINZA),
@@ -85,7 +85,7 @@ def capa(c, doc):
     c.drawString(18 * mm, A4[1] - 42 * mm, "Prestação de Contas TI · Status do projeto e próximos passos")
     c.setFont("DV", 9.5)
     c.drawString(18 * mm, A4[1] - 54 * mm, f"Atualizado em {date.today():%d/%m/%Y} · Repositório TecnologiaComm/Central_notas "
-                                            "(branch claude/ecstatic-pasteur-kf3el4)")
+                                            "(branch main)")
     c.restoreState()
     rodape(c, doc)
 
@@ -104,7 +104,9 @@ s += [P("1. Resumo", "h1"),
            "<font color='#1A7F37'><b>Pronto</b></font> · testado em modo demo"],
           ["Versão Azure: login Microsoft, SharePoint, carga pela web, publicação automática",
            "<font color='#B54708'><b>Código pronto</b></font> · falta criar os recursos e configurar"],
+          ["Código no GitHub", "<font color='#1A7F37'><b>Na main</b></font> · pull request #1 aprovado; testes do GitHub Actions passando"],
           ["Testes automáticos", "13 testes passando (fluxo completo, regras, login, SharePoint, carga)"],
+          ["Ambiente real (M365, Azure, SharePoint)", "<font color='#B54708'><b>Não configurado</b></font> · app ainda não está no ar"],
       ], [112 * mm, 62 * mm]),
       Spacer(1, 6),
       caixa("<b>Importante:</b> nada foi testado ainda com a caixa real, o Azure real ou o SharePoint real. "
@@ -155,7 +157,7 @@ s += [Spacer(1, 4), P("Arquitetura", "h2"),
 
 # ---------------------------------------------------------------- 4. O que precisamos fazer
 CK = "☐"
-s += [PageBreak(), P("4. O que precisamos fazer", "h1"),
+s += [Spacer(1, 6), P("4. O que precisamos fazer", "h1"),
       P("Em ordem. Cada bloco indica quem faz. Os detalhes técnicos (comandos e telas) estão no README do repositório, "
         "seção “Publicar no Azure”.", "sub"), Spacer(1, 4)]
 
@@ -172,7 +174,7 @@ s += [bloco("Passo 1 – Decidir os nomes e valores", "Renan / time administrati
     "Nome do site no Azure (ex.: <b>central-notas-comm</b> → https://central-notas-comm.azurewebsites.net).",
     "Site e biblioteca do SharePoint para as notas (ex.: “Prestação de Contas TI” / “Documentos” / pasta “Notas”).",
     "Quem pode entrar no app (lista de e-mails ou grupo) e se a regra de aprovação continua só o Robson.",
-    "Juntar a branch na <b>main</b> (pull request) para a publicação automática começar a valer."]),
+    "<s>Juntar a branch na main</s> — <font color='#1A7F37'><b>feito</b></font> (pull request #1)."]),
       bloco("Passo 2 – Registro do app no Microsoft 365", "Admin do M365 / TI", [
     "Criar o registro “Central de Notas” (somente este diretório) e anotar <b>Tenant ID</b> e <b>Client ID</b>.",
     "Permissões de aplicativo do Graph: <b>Mail.ReadWrite</b>, <b>Mail.Send</b>, <b>Sites.Selected</b> + consentimento do administrador.",
@@ -190,7 +192,7 @@ s += [bloco("Passo 1 – Decidir os nomes e valores", "Renan / time administrati
       bloco("Passo 4 – Ligar o GitHub ao Azure", "Quem administra o GitHub da TecnologiaComm", [
     "Baixar o perfil de publicação do App Service.",
     "No GitHub (Settings → Secrets and variables → Actions): segredo <b>AZURE_WEBAPP_PUBLISH_PROFILE</b> e variável <b>AZURE_WEBAPP_NAME</b>.",
-    "Fazer o merge na main e conferir na aba Actions que os testes e a publicação ficaram verdes."]),
+    "Rodar de novo o workflow (aba Actions → “Testar e publicar no Azure” → Run workflow) e conferir que a publicação ficou verde."]),
       bloco("Passo 5 – Primeiro uso", "Time administrativo", [
     "Entrar no site com a conta da Comm.",
     "Menu “Carga da planilha”: enviar a planilha atual (aba Infos + abas mensais).",
@@ -212,7 +214,7 @@ s += [P("5. Pontos de atenção", "h1"),
 # ---------------------------------------------------------------- 6. Cronograma
 s += [P("6. Cronograma sugerido", "h1"),
       tabela(["Quando", "O quê", "Quem"], [
-          ["Semana 1", "Passos 1 a 4: registro no M365, Azure, GitHub e merge na main", "TI + Renan"],
+          ["Semana 1", "Passos 1 a 4: decisões, registro no M365, Azure e GitHub", "TI + Renan"],
           ["Semana 2", "Passo 5: carga da planilha e alguns dias só conferindo a caixa real", "Time administrativo"],
           ["Semana 3", "Ajustes do que apareceu na conferência; liberar o “de acordo” ao Robson e usar no dia a dia", "Renan + Robson"],
       ], [26 * mm, 108 * mm, 40 * mm], destaque_col0=True)]
