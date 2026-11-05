@@ -22,13 +22,26 @@ class Settings(BaseSettings):
     pasta_entrada: str = "Inbox"
     pasta_processados: str = "Notas Processadas"
 
-    pasta_arquivos: Path = RAIZ / "data" / "arquivos"
-    database_url: str = f"sqlite:///{RAIZ / 'data' / 'notas.db'}"
+    # Tudo o que precisa sobreviver a reinícios. No Azure App Service: PASTA_DADOS=/home/data
+    pasta_dados: Path = RAIZ / "data"
+    pasta_arquivos: Path | None = None  # padrão: <PASTA_DADOS>/arquivos
+    database_url: str = ""  # padrão: SQLite em <PASTA_DADOS>/notas.db
 
     url_base: str = "http://localhost:8000"
     segredo_app: str = "dev-inseguro"
     intervalo_verificacao_min: int = 5
     modo_demo: bool = False
+
+    # Login Microsoft (Entra ID) via autenticação do App Service ("Easy Auth").
+    # Só ligue atrás do App Service com a autenticação configurada: os cabeçalhos X-MS-CLIENT-PRINCIPAL-*
+    # só são confiáveis porque o App Service remove os que vierem do navegador.
+    login_obrigatorio: bool = False
+    usuarios_permitidos: str = ""  # e-mails e/ou domínios separados por vírgula; vazio = qualquer conta do tenant
+
+    # SharePoint: cópia dos arquivos renomeados e da planilha (vazio = só a pasta local)
+    sharepoint_site: str = ""  # ex.: commcenter.sharepoint.com:/sites/PrestacaodeContasTI
+    sharepoint_biblioteca: str = "Documentos"
+    sharepoint_pasta: str = "Notas"
 
     anthropic_api_key: str = ""
     modelo_ia: str = "claude-sonnet-4-5"
@@ -37,9 +50,25 @@ class Settings(BaseSettings):
 @lru_cache
 def settings() -> Settings:
     s = Settings()
-    s.pasta_arquivos = Path(s.pasta_arquivos).resolve()
+    s.pasta_dados = Path(s.pasta_dados).resolve()
+    s.pasta_dados.mkdir(parents=True, exist_ok=True)
+    s.pasta_arquivos = Path(s.pasta_arquivos or s.pasta_dados / "arquivos").resolve()
     s.pasta_arquivos.mkdir(parents=True, exist_ok=True)
+    s.database_url = s.database_url or f"sqlite:///{s.pasta_dados / 'notas.db'}"
     return s
+
+
+def arquivo_config(nome: str) -> Path | None:
+    """Arquivos de negócio: <PASTA_DADOS>/config (carga feita pelo app) > config/ > config/exemplo/."""
+    for pasta in (settings().pasta_dados / "config", PASTA_CONFIG, PASTA_CONFIG / "exemplo"):
+        if (pasta / nome).exists():
+            return pasta / nome
+    return None
+
+
+def recarregar_config() -> None:
+    filiais.cache_clear()
+    regras_aprovacao.cache_clear()
 
 
 def _so_digitos(v: str | None) -> str:
@@ -49,7 +78,8 @@ def _so_digitos(v: str | None) -> str:
 @lru_cache
 def filiais() -> list[dict]:
     """[{empresa: 'VMT', filial: '99', cnpj: '05828732006552'}, ...]"""
-    dados = yaml.safe_load((PASTA_CONFIG / "filiais.yaml").read_text(encoding="utf-8"))
+    caminho = arquivo_config("filiais.yaml")
+    dados = yaml.safe_load(caminho.read_text(encoding="utf-8")) if caminho else {}
     return [{"empresa": str(f["empresa"]).upper(), "filial": str(f["filial"]),
              "cnpj": _so_digitos(str(f["cnpj"])).zfill(14)} for f in dados.get("filiais", [])]
 
@@ -77,11 +107,9 @@ def regras_aprovacao() -> dict:
 
 
 def _ler_csv(nome: str) -> list[dict]:
-    """Lê config/<nome> (dados reais, fora do git); se não existir, usa config/exemplo/<nome>."""
-    caminho = PASTA_CONFIG / nome
-    if not caminho.exists():
-        caminho = PASTA_CONFIG / "exemplo" / nome
-    if not caminho.exists():
+    """Lê o CSV de dados reais (fora do git); se não existir, usa config/exemplo/<nome>."""
+    caminho = arquivo_config(nome)
+    if not caminho:
         return []
     with caminho.open(encoding="utf-8-sig") as fh:
         return [{k: (v or "").strip() for k, v in linha.items()} for linha in csv.DictReader(fh, delimiter=";")]

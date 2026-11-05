@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, create_engine, select
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, create_engine, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from .config import settings
@@ -150,6 +150,7 @@ class Nota(Base):
     decisao_em: Mapped[datetime | None] = mapped_column(DateTime)
     comentario_aprovacao: Mapped[str] = mapped_column(Text, default="")
     pasta: Mapped[str] = mapped_column(Text, default="")
+    pasta_sharepoint: Mapped[str] = mapped_column(Text, default="")  # link da pasta no SharePoint
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -173,6 +174,9 @@ class Documento(Base):
     caminho: Mapped[str] = mapped_column(Text)
     content_type: Mapped[str] = mapped_column(String(120), default="")
     sha256: Mapped[str] = mapped_column(String(64), index=True)
+    sharepoint_id: Mapped[str] = mapped_column(String(80), default="")
+    sharepoint_nome: Mapped[str] = mapped_column(String(300), default="")  # nome com que foi enviado
+    sharepoint_url: Mapped[str] = mapped_column(Text, default="")
 
     nota: Mapped[Nota | None] = relationship(back_populates="documentos")
 
@@ -189,7 +193,7 @@ class Evento(Base):
     nota: Mapped[Nota] = relationship(back_populates="eventos")
 
 
-_url = settings().database_url
+_url = settings().database_url  # padrão: SQLite em <PASTA_DADOS>/notas.db
 engine = create_engine(_url, connect_args={"check_same_thread": False} if _url.startswith("sqlite") else {})
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -201,11 +205,27 @@ def _num(v: str) -> float | None:
         return None
 
 
+def _adicionar_colunas_novas() -> None:
+    """create_all não altera tabelas existentes: inclui colunas novas em bancos criados por versões anteriores."""
+    insp = inspect(engine)
+    with engine.begin() as con:
+        for tabela in Base.metadata.sorted_tables:
+            if not insp.has_table(tabela.name):
+                continue
+            existentes = {c["name"] for c in insp.get_columns(tabela.name)}
+            for col in tabela.columns:
+                if col.name not in existentes:
+                    tipo = col.type.compile(dialect=engine.dialect)
+                    padrao = " DEFAULT ''" if isinstance(col.type, (String, Text)) else ""
+                    con.execute(text(f'ALTER TABLE {tabela.name} ADD {col.name} {tipo}{padrao}'))
+
+
 def iniciar_banco() -> None:
     if _url.startswith("sqlite:///"):
         from pathlib import Path
         Path(_url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
+    _adicionar_colunas_novas()
     from .config import fornecedores_iniciais, historico_inicial
     with SessionLocal() as db:
         for f in fornecedores_iniciais():
@@ -213,7 +233,7 @@ def iniciar_banco() -> None:
             if cnpj.strip("0") and not db.get(Fornecedor, cnpj):
                 db.add(Fornecedor(cnpj=cnpj, apelido=f.get("apelido", "").upper(),
                                   razao=f.get("razao", ""), codigos=f.get("codigos", "")))
-        if db.scalar(select(Historico.id).limit(1)) is None:
+        if db.scalar(select(Historico.id).where(Historico.origem.like("planilha%")).limit(1)) is None:
             for h in historico_inicial():
                 db.add(Historico(
                     data_ref=date.fromisoformat(h["data_ref"]) if h.get("data_ref") else None,

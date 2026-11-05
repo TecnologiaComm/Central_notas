@@ -107,6 +107,7 @@
       <tr><td><span class="tag cinza">{{ d.tipo }}</span></td>
         <td><a href="/documento/{{ d.id }}" target="_blank">{{ d.nome_final or d.nome_original }}</a>
           {% if d.nome_final %}<div class="sub">original: {{ d.nome_original }}</div>{% endif %}
+          {% if d.sharepoint_url %}<div class="sub"><a href="{{ d.sharepoint_url }}" target="_blank">abrir no SharePoint</a></div>{% endif %}
           {% if outras %}
           <form method="post" action="/documento/{{ d.id }}/mover" style="margin-top:4px">
             <select name="destino" class="sub" onchange="if(this.value)this.form.submit()">
@@ -118,6 +119,8 @@
     {% endfor %}
     </table>
     {% if n.pasta %}<p class="sub">Pasta: {{ n.pasta }}</p>{% endif %}
+    {% if n.pasta_sharepoint %}<a class="btn" href="{{ n.pasta_sharepoint }}" target="_blank">Pasta no SharePoint</a>
+    {% elif sharepoint_habilitado() and n.status not in [Status.CONFERENCIA, Status.IGNORADA] %}<p class="sub">SharePoint: envio pendente (tenta de novo na próxima verificação).</p>{% endif %}
   </div>
 
   {% if n.email %}

@@ -1,0 +1,49 @@
+# Testa cada alteração e publica a main no Azure App Service.
+# Configuração única (Settings > Secrets and variables > Actions):
+#   variável AZURE_WEBAPP_NAME           = nome do App Service (ex.: central-notas-comm)
+#   segredo  AZURE_WEBAPP_PUBLISH_PROFILE = conteúdo do "perfil de publicação" baixado no portal do App Service
+# Enquanto a variável não existir, o workflow só roda os testes.
+name: Testar e publicar no Azure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  publicar:
+    needs: testes
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.AZURE_WEBAPP_NAME != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: producao
+      url: ${{ steps.deploy.outputs.webapp-url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pacote (sem testes e dados locais)
+        run: zip -qr pacote.zip . -x '.git/*' '.github/*' 'tests/*' 'data/*' '*__pycache__*' '.env'
+      - id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: pacote.zip
