@@ -150,6 +150,7 @@ class Nota(Base):
     decisao_em: Mapped[datetime | None] = mapped_column(DateTime)
     comentario_aprovacao: Mapped[str] = mapped_column(Text, default="")
     pasta: Mapped[str] = mapped_column(Text, default="")
+    pasta_sharepoint: Mapped[str] = mapped_column(Text, default="")  # link da pasta no SharePoint
     protheus_doc: Mapped[str] = mapped_column(String(80), default="")  # "DOC/SERIE (recno N)" após lançar
     protheus_erro: Mapped[str] = mapped_column(Text, default="")  # último erro; bloqueia o lançamento automático
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
@@ -175,6 +176,9 @@ class Documento(Base):
     caminho: Mapped[str] = mapped_column(Text)
     content_type: Mapped[str] = mapped_column(String(120), default="")
     sha256: Mapped[str] = mapped_column(String(64), index=True)
+    sharepoint_id: Mapped[str] = mapped_column(String(80), default="")
+    sharepoint_nome: Mapped[str] = mapped_column(String(300), default="")  # nome com que foi enviado
+    sharepoint_url: Mapped[str] = mapped_column(Text, default="")
 
     nota: Mapped[Nota | None] = relationship(back_populates="documentos")
 
@@ -191,7 +195,7 @@ class Evento(Base):
     nota: Mapped[Nota] = relationship(back_populates="eventos")
 
 
-_url = settings().database_url
+_url = settings().database_url  # padrão: SQLite em <PASTA_DADOS>/notas.db
 engine = create_engine(_url, connect_args={"check_same_thread": False} if _url.startswith("sqlite") else {})
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -231,7 +235,7 @@ def iniciar_banco() -> None:
             if cnpj.strip("0") and not db.get(Fornecedor, cnpj):
                 db.add(Fornecedor(cnpj=cnpj, apelido=f.get("apelido", "").upper(),
                                   razao=f.get("razao", ""), codigos=f.get("codigos", "")))
-        if db.scalar(select(Historico.id).limit(1)) is None:
+        if db.scalar(select(Historico.id).where(Historico.origem.like("planilha%")).limit(1)) is None:
             for h in historico_inicial():
                 db.add(Historico(
                     data_ref=date.fromisoformat(h["data_ref"]) if h.get("data_ref") else None,

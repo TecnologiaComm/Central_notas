@@ -44,9 +44,13 @@
 <header>
   <span class="marca">Central de Notas</span>
   <a href="/">Fila</a><a href="/?status={{ Status.APROVADA }}">Prontas p/ Protheus</a>
-  <a href="/fornecedores">Fornecedores</a><a href="/planilha.xlsx">Baixar planilha</a>
+  <a href="/fornecedores">Fornecedores</a><a href="/planilha.xlsx">Baixar planilha</a><a href="/carga">Carga da planilha</a>
   {% if usuario is defined %}
+    {% if login_obrigatorio() %}
+  <span class="dir">{{ usuario }} · <a href="/.auth/logout?post_logout_redirect_uri=/">Sair</a></span>
+    {% else %}
   <span class="dir"><form method="post" action="/usuario">Usuário: <input name="nome" value="{{ usuario }}" onchange="this.form.submit()"></form></span>
+    {% endif %}
   {% endif %}
 </header>
 <main>
