@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+  <h1 style="margin:0">Fila de notas</h1>
+  <form method="post" action="/verificar" style="margin-left:auto"><button class="btn pri">Verificar e-mails agora</button></form>
+</div>
+
+<div class="kpis">
+  <a class="kpi {{ 'ativo' if not filtro }}" href="/"><span class="sub">Em aberto</span>
+    <b>{{ contagem.get(Status.CONFERENCIA,0) + contagem.get(Status.AGUARDANDO,0) + contagem.get(Status.APROVADA,0) + contagem.get(Status.REPROVADA,0) }}</b></a>
+  {% for s in [Status.CONFERENCIA, Status.AGUARDANDO, Status.APROVADA, Status.REPROVADA, Status.LANCADA] %}
+  <a class="kpi {{ 'ativo' if filtro == s }}" href="/?status={{ s }}"><span class="sub">{{ s }}</span><b>{{ contagem.get(s,0) }}</b></a>
+  {% endfor %}
+</div>
+
+<div class="card" style="padding:0">
+  <form style="padding:12px 14px;border-bottom:1px solid var(--borda)">
+    <input type="hidden" name="status" value="{{ filtro }}">
+    <input name="q" value="{{ q }}" placeholder="Buscar prestador, NFS, PC, chamado, empresa…" style="padding:7px 10px;border:1px solid #d0d5dd;border-radius:6px;width:320px">
+  </form>
+  <table>
+    <tr><th>#</th><th>Etapa</th><th>Prestador</th><th>NFS</th><th>Empresa / Filial</th><th>Despesa</th><th>CC</th>
+        <th class="num">Valor</th><th>Vencimento</th><th>PC / Chamado</th><th>Alertas</th></tr>
+    {% for n in notas %}
+    {% set dias = (n.vencimento - hoje()).days if n.vencimento else none %}
+    <tr class="link" onclick="location='/nota/{{ n.id }}'">
+      <td>{{ n.id }}</td>
+      <td><span class="tag {{ classe_status(n.status) }}">{{ n.status }}</span></td>
+      <td><b>{{ n.prestador or '—' }}</b><div class="sub">{{ n.descricao[:48] }}</div></td>
+      <td>{{ n.tipo_doc }} {{ n.numero or '—' }}</td>
+      <td>{{ n.empresa or '—' }} / {{ n.filial or '—' }}</td><td>{{ n.despesa or '—' }}</td><td>{{ n.cc or '—' }}</td>
+      <td class="num">{{ n.valor|brl }}</td>
+      <td>{% if dias is not none and dias <= 3 and n.status not in [Status.LANCADA] %}<span class="tag vermelho">{{ n.vencimento|data }}</span>{% else %}{{ n.vencimento|data }}{% endif %}</td>
+      <td class="sub">{{ n.pc or '—' }} / {{ n.chamado or '—' }}</td>
+      <td>{% if n.lista_alertas %}<span class="tag amarelo" title="{{ n.lista_alertas|join(' | ') }}">{{ n.lista_alertas|length }}</span>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="11" class="sub" style="padding:24px;text-align:center">Nenhuma nota aqui.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

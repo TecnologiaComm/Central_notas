@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>Fornecedores</h1>
+<p class="sub">Carga inicial: aba <b>Infos</b> da planilha. Atualizado automaticamente a cada conferência salva.</p>
+<div class="card" style="padding:0">
+<table>
+  <tr><th>Prestador</th><th>Razão social</th><th>CNPJ</th><th>Código Protheus por empresa</th></tr>
+  {% for f in lista %}
+  <tr><td><b>{{ f.apelido }}</b></td><td>{{ f.razao }}</td><td>{{ f.cnpj }}</td>
+      <td>{% for e, c in f.mapa_codigos.items() %}<span class="tag cinza">{{ 'todas' if e=='*' else e }}: {{ c }}</span> {% endfor %}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

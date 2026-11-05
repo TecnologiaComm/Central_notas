@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}Aprovação – Nota #{{ n.id }}{% endblock %}
+{% block conteudo %}
+<div class="card" style="max-width:640px;margin:0 auto">
+  <h1>Nota #{{ n.id }} · {{ n.prestador }} {{ n.tipo_doc }} {{ n.numero }} {{ n.empresa }}</h1>
+  <table>
+    <tr><td class="sub">Razão social</td><td>{{ n.razao_social }}</td></tr>
+    <tr><td class="sub">Empresa / Filial</td><td>{{ n.empresa }} / {{ n.filial }}</td></tr>
+    <tr><td class="sub">Despesa · CC · Conta</td><td>{{ n.despesa }} · {{ n.cc }} · {{ n.conta_contabil }}</td></tr>
+    <tr><td class="sub">Descrição</td><td>{{ n.descricao }}</td></tr>
+    <tr><td class="sub">Valor</td><td><b>{{ n.valor|brl }}</b></td></tr>
+    <tr><td class="sub">Vencimento</td><td><b>{{ n.vencimento|data }}</b></td></tr>
+  </table>
+
+  {% if concluido is not none %}
+    {% if concluido %}
+      <div class="flash" style="margin-top:16px">Decisão registrada: <b>{{ n.status }}</b>. Obrigado!</div>
+    {% else %}
+      <div class="flash erro" style="margin-top:16px">Esta nota já não está aguardando aprovação (status atual: {{ n.status }}{% if n.aprovado_por %}, por {{ n.aprovado_por }}{% endif %}).</div>
+    {% endif %}
+  {% elif n.status != Status.AGUARDANDO %}
+    <div class="flash erro" style="margin-top:16px">Esta nota não está aguardando aprovação (status: {{ n.status }}).</div>
+  {% else %}
+  <form method="post" style="margin-top:16px">
+    <input type="hidden" name="e" value="{{ e }}"><input type="hidden" name="s" value="{{ s }}">
+    <label class="sub">Comentário {{ '(obrigatório para reprovar)' if acao=='reprovar' else '(opcional)' }}</label>
+    <textarea name="comentario" rows="3" style="width:100%;margin:4px 0 12px;padding:8px;border:1px solid #d0d5dd;border-radius:6px;font:inherit"
+      {{ 'required' if acao=='reprovar' }}></textarea>
+    <div class="acoes">
+      {% if acao == 'reprovar' %}
+        <button class="btn perigo-cheio" name="acao" value="reprovar">Confirmar “não de acordo”</button>
+        <button class="btn ok" name="acao" value="aprovar" formnovalidate>De acordo</button>
+      {% else %}
+        <button class="btn ok" name="acao" value="aprovar">Confirmar “de acordo”</button>
+        <button class="btn perigo" name="acao" value="reprovar">Não de acordo</button>
+      {% endif %}
+    </div>
+    <p class="sub">Aprovando como {{ e }}</p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
