@@ -31,15 +31,15 @@ async function iniciar() {
   const { data: p } = await sb.from("perfis").select("*").eq("id", session.user.id).single();
   PERFIL = p || { nome: session.user.email, email: session.user.email, papel: "analista", trocar_senha: false };
   if (PERFIL.trocar_senha) return telaSenha();
-  $("#topo").hidden = false;
-  $("#quem").textContent = `${PERFIL.nome} (${PERFIL.papel})`;
-  $("#lnk-aprovar").hidden = !ehAprovador();
+  document.body.classList.add("logado");
+  $("#quem").textContent = PERFIL.nome;
+  $("#papel").textContent = { admin: "Administrador", aprovador: "Aprovador", analista: "Analista" }[PERFIL.papel] || PERFIL.papel;
   await carregarListas();
   rotear();
 }
 
 function telaLogin() {
-  $("#topo").hidden = true;
+  document.body.classList.remove("logado");
   main.replaceChildren($("#tpl-login").content.cloneNode(true));
   $("#form-login").onsubmit = async (e) => {
     e.preventDefault();
@@ -51,7 +51,7 @@ function telaLogin() {
 }
 
 function telaSenha() {
-  $("#topo").hidden = true;
+  document.body.classList.remove("logado");
   main.replaceChildren($("#tpl-senha").content.cloneNode(true));
   $("#form-senha").onsubmit = async (e) => {
     e.preventDefault();
@@ -78,58 +78,242 @@ async function carregarListas() {
 function rotear() {
   const [rota, qs] = location.hash.replace(/^#/, "").split("?");
   const params = new URLSearchParams(qs || "");
-  const m = rota.match(/^\/nota\/(\d+)/);
+  const m = rota.match(/^\/nota\/(\d+)/), mod = rota.match(/^\/m\/(\w+)/);
+  const ativo = m ? null : mod ? mod[1] : "";
+  document.querySelectorAll("#lateral [data-rota]").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === ativo));
+  window.scrollTo(0, 0);
   if (m) return telaNota(Number(m[1]));
-  telaFila(params.get("status") || "", params.get("q") || "");
+  if (mod && MODULOS[mod[1]]) return telaModulo(mod[1], params);
+  telaInicio();
 }
 
-/* ------------------------------------------------------------------ fila */
-async function telaFila(filtro, q) {
+/* ------------------------------------------------------------------ ícones e módulos */
+const ICONE = {
+  inicio: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  conferencia: '<path d="M9 5h10M9 12h10M9 19h10"/><path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>',
+  acordo: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  protheus: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  reprovadas: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  lancadas: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  ignoradas: '<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 22 12a14 14 0 0 1-3.2 4M6.6 6.6A14 14 0 0 0 2 12s4 7 10 7a9 9 0 0 0 4-.9"/>',
+  atencao: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
+  vencendo: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+  vencidas: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
+  alertas: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  atualizar: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+  exportar: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+  busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+};
+const svg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONE[k]}</svg>`;
+const ABERTAS = ["Em conferência", "Aguardando aprovação", "Aprovada", "Reprovada"];
+const CAMPOS_LISTA = "id,status,prestador,descricao,tipo_doc,numero,empresa,filial,despesa,cc,conta_contabil,fornecedor,valor,vencimento," +
+  "pc,chamado,status_nota,alertas,comentario,aprovado_por,decisao_em,atualizado_em,atualizado_por,criado_em";
+
+const hoje0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const dias = (n) => n.vencimento ? Math.round((new Date(n.vencimento + "T00:00:00") - hoje0()) / 864e5) : null;
+const ATENCAO = {
+  vencidas: { rotulo: "Vencidas", cor: "vermelho", f: (n) => { const d = dias(n); return d !== null && d < 0; } },
+  vencendo: { rotulo: "Vencendo em até 3 dias", cor: "laranja", f: (n) => { const d = dias(n); return d !== null && d >= 0 && d <= 3; } },
+  alertas: { rotulo: "Com alertas", cor: "amarelo", f: (n) => n.alertas?.length > 0 },
+};
+
+function idade(iso) {
+  if (!iso) return "—";
+  const h = (Date.now() - new Date(iso)) / 36e5;
+  return h < 24 ? `${Math.max(1, Math.round(h))}h` : `${Math.floor(h / 24)}d ${Math.round(h % 24)}h`;
+}
+const soma = (l) => l.reduce((t, n) => t + Number(n.valor || 0), 0);
+const qtd = (k) => `${k} ${k === 1 ? "nota" : "notas"}`;
+
+/* Colunas reutilizáveis: [cabeçalho, render(n), classe] */
+const COL = {
+  id: ["#", (n) => n.id],
+  etapa: ["Etapa", (n) => `<span class="tag ${COR[n.status]}">${esc(n.status)}</span>`],
+  prestador: ["Prestador", (n) => `<b>${esc(n.prestador || "—")}</b><div class="sub">${esc((n.descricao || "").slice(0, 60))}</div>`, "c-prest"],
+  nfs: ["NFS", (n) => `${esc(n.tipo_doc)} ${esc(n.numero || "—")}`, "nw"],
+  empresa: ["Empresa / Filial", (n) => `${esc(n.empresa || "—")} / ${esc(n.filial || "—")}`, "nw"],
+  classif: ["Despesa · CC · Conta", (n) => `${esc(n.despesa || "—")} · ${esc(n.cc || "—")} · ${esc(n.conta_contabil || "—")}`, "nw"],
+  fornecedor: ["Fornecedor", (n) => esc(n.fornecedor || "—")],
+  valor: ["Valor", (n) => brl(n.valor), "num"],
+  venc: ["Vencimento", (n) => { const d = dias(n); return d !== null && d <= 3 && ABERTAS.includes(n.status)
+    ? `<span class="tag ${d < 0 ? "vermelho" : "laranja"}">${data(n.vencimento)}</span>` : data(n.vencimento); }, "nw"],
+  recebida: ["Recebida há", (n) => idade(n.criado_em), "nw"],
+  alertas: ["Alertas", (n) => n.alertas?.length ? n.alertas.map((a) => `<div class="mini-alerta">⚠ ${esc(a)}</div>`).join("") : `<span class="sub">—</span>`, "c-alerta"],
+  enviada: ["Enviada", (n) => `${dataHora(n.atualizado_em)}<div class="sub">${esc(n.atualizado_por || "")}</div>`, "nw"],
+  aprovada: ["De acordo", (n) => `${dataHora(n.decisao_em)}<div class="sub">${esc(n.aprovado_por || "")}</div>`, "nw"],
+  pc: ["PC / Chamado", (n) => `${esc(n.pc || "—")} / ${esc(n.chamado || "—")}`, "nw"],
+  statusNota: ["Status nota", (n) => esc(n.status_nota || "—")],
+  motivo: ["Motivo", (n) => `<b>${esc(n.comentario || "—")}</b><div class="sub">${esc(n.aprovado_por || "")} · ${dataHora(n.decisao_em)}</div>`, "c-prest"],
+};
+
+const MODULOS = {
+  conferencia: { titulo: "Em conferência", status: "Em conferência", cor: "amarelo",
+    desc: "Notas que o robô leu da caixa. Confira os campos e peça o de acordo.",
+    colunas: ["id", "recebida", "prestador", "nfs", "empresa", "valor", "venc", "alertas"], botao: () => ["Conferir", "pri", "abrir"] },
+  acordo: { titulo: "Aguardando de acordo", status: "Aguardando aprovação", cor: "azul",
+    desc: "Notas conferidas esperando o de acordo do Robson. Clique na linha para ver os detalhes e os arquivos.",
+    colunas: ["id", "prestador", "nfs", "empresa", "classif", "valor", "venc", "enviada"],
+    botao: () => ehAprovador() ? ["De acordo", "ok", "aprovar"] : ["Abrir", "", "abrir"] },
+  protheus: { titulo: "Prontas p/ Protheus", status: "Aprovada", cor: "verde",
+    desc: "Com de acordo. Lance no Protheus e registre PC, chamado e status.",
+    colunas: ["id", "prestador", "nfs", "empresa", "fornecedor", "valor", "venc", "aprovada", "pc"], botao: () => ["Lançar", "pri", "abrir"] },
+  reprovadas: { titulo: "Não de acordo", status: "Reprovada", cor: "vermelho",
+    desc: "O Robson não deu o de acordo. Veja o motivo, corrija e envie de novo.",
+    colunas: ["id", "prestador", "nfs", "valor", "motivo"], botao: () => ["Corrigir", "pri", "abrir"] },
+  lancadas: { titulo: "NF lançadas", status: "NF lançada", cor: "cinza", mes: true,
+    desc: "Notas concluídas. Filtre por mês de recebimento.",
+    colunas: ["id", "prestador", "nfs", "empresa", "valor", "pc", "statusNota", "venc"], botao: () => ["Ver", "", "abrir"] },
+  ignoradas: { titulo: "Ignoradas", status: "Ignorada", cor: "cinza",
+    desc: "E-mails que não eram nota ou eram duplicados. Reabra se foi engano.",
+    colunas: ["id", "recebida", "prestador", "nfs", "valor"], botao: () => ["Reabrir", "", "reabrir"] },
+  atencao: { titulo: "Atenção", cor: "vermelho", abas: true,
+    desc: "Notas em aberto vencidas, vencendo em até 3 dias ou com alertas de duplicidade, cadastro ou leitura.",
+    colunas: ["id", "etapa", "prestador", "nfs", "valor", "venc", "alertas"], botao: () => ["Abrir", "", "abrir"] },
+};
+const moduloDoStatus = (s) => Object.keys(MODULOS).find((k) => MODULOS[k].status === s) || "conferencia";
+
+async function buscarNotas() {
+  const { data, error } = await sb.from("notas").select(CAMPOS_LISTA)
+    .order("vencimento", { ascending: true, nullsFirst: false }).order("id", { ascending: false }).limit(3000);
+  if (error) throw error;
+  return data;
+}
+
+/* ------------------------------------------------------------------ início */
+async function telaInicio() {
   main.innerHTML = `<p class="sub">Carregando…</p>`;
-  const { data: todas, error } = await sb.from("notas")
-    .select("id,status,prestador,descricao,tipo_doc,numero,empresa,filial,despesa,cc,valor,vencimento,pc,chamado,alertas")
-    .neq("status", "Ignorada").order("vencimento", { ascending: true, nullsFirst: false }).order("id", { ascending: false }).limit(1000);
-  if (error) return (main.innerHTML = `<div class="aviso erro">${esc(error.message)}</div>`);
-  const cont = {};
-  todas.forEach((n) => (cont[n.status] = (cont[n.status] || 0) + 1));
-  const abertas = ["Em conferência", "Aguardando aprovação", "Aprovada", "Reprovada"];
-  let lista = filtro ? todas.filter((n) => n.status === filtro) : todas.filter((n) => abertas.includes(n.status));
-  const termo = q.toLowerCase();
-  if (termo) lista = lista.filter((n) => [n.prestador, n.numero, n.empresa, n.pc, n.chamado, n.descricao].join(" ").toLowerCase().includes(termo));
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const kpi = (s, rot, n) => `<a class="kpi ${filtro === s ? "ativo" : ""}" href="#/${s ? "?status=" + encodeURIComponent(s) : ""}"><span class="sub">${rot}</span><b>${n}</b></a>`;
+  let todas;
+  try { todas = await buscarNotas(); } catch (e) { return (main.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`); }
+  const abertas = todas.filter((n) => ABERTAS.includes(n.status));
+  const por = (k) => todas.filter((n) => n.status === MODULOS[k].status);
+  const att = Object.fromEntries(Object.entries(ATENCAO).map(([k, a]) => [k, abertas.filter(a.f)]));
+  const hora = new Date().getHours();
+  const saud = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  const hojeTxt = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const maisAntiga = (l) => l.length ? idade(l.reduce((a, n) => (n.criado_em < a ? n.criado_em : a), l[0].criado_em)) : "—";
+
+  const cartao = (href, icone, cor, titulo, lista, rodape) => `
+    <a class="cartao" href="${href}">
+      <span class="icone ${cor}">${svg(icone)}</span>
+      <span class="titulo">${titulo}</span>
+      <span class="numero"><b>${lista.length}</b> ${lista.length === 1 ? "nota" : "notas"}</span>
+      <span class="rodape">${rodape}<span class="seta">›</span></span>
+    </a>`;
+
   main.innerHTML = `
-    <h1>Fila de notas</h1>
-    <div class="kpis">${kpi("", "Em aberto", abertas.reduce((t, s) => t + (cont[s] || 0), 0))}${STATUS.map((s) => kpi(s, s, cont[s] || 0)).join("")}</div>
-    <div class="card" style="padding:0">
-      <form id="form-busca" style="padding:12px 14px;border-bottom:1px solid var(--borda)">
-        <input class="busca" name="q" value="${esc(q)}" placeholder="Buscar prestador, NFS, PC, chamado, empresa…">
-      </form>
-      <div class="tabela-fila"><table>
-        <tr><th>#</th><th>Etapa</th><th>Prestador</th><th>NFS</th><th>Empresa / Filial</th><th>Despesa</th><th>CC</th>
-            <th class="num">Valor</th><th>Vencimento</th><th>PC / Chamado</th><th>Alertas</th></tr>
-        ${lista.map((n) => {
-          const venc = n.vencimento ? new Date(n.vencimento + "T12:00:00") : null;
-          const urgente = venc && (venc - hoje) / 864e5 <= 3 && n.status !== "NF lançada";
-          return `<tr class="link" data-id="${n.id}">
-            <td>${n.id}</td><td><span class="tag ${COR[n.status]}">${esc(n.status)}</span></td>
-            <td><b>${esc(n.prestador || "—")}</b><div class="sub">${esc((n.descricao || "").slice(0, 50))}</div></td>
-            <td>${esc(n.tipo_doc)} ${esc(n.numero || "—")}</td><td>${esc(n.empresa || "—")} / ${esc(n.filial || "—")}</td>
-            <td>${esc(n.despesa || "—")}</td><td>${esc(n.cc || "—")}</td><td class="num">${brl(n.valor)}</td>
-            <td>${urgente ? `<span class="tag vermelho">${data(n.vencimento)}</span>` : data(n.vencimento)}</td>
-            <td class="sub">${esc(n.pc || "—")} / ${esc(n.chamado || "—")}</td>
-            <td>${n.alertas?.length ? `<span class="tag amarelo" title="${esc(n.alertas.join(" | "))}">${n.alertas.length}</span>` : ""}</td></tr>`;
-        }).join("") || `<tr><td colspan="11" class="sub" style="padding:24px;text-align:center">Nenhuma nota aqui.</td></tr>`}
-      </table></div>
+    <section class="hero">
+      <div>
+        <h1>${saud}, ${esc((PERFIL.nome || "").split(" ")[0])}</h1>
+        <p>${hojeTxt} · <b>${qtd(por("conferencia").length)}</b> em conferência, <b>${att.vencidas.length + att.vencendo.length}</b> vencendo ou vencidas</p>
+      </div>
+      <form id="form-busca" class="busca-hero">${svg("busca")}<input name="q" placeholder="Buscar em todas as notas: prestador, NFS, PC, chamado…"></form>
+    </section>
+    <div class="acoes-hero">
+      <button class="acao destaque" id="btn-atualizar"><span class="icone escuro">${svg("atualizar")}</span>Atualizar agora</button>
+      <button class="acao" id="btn-exportar2"><span class="icone claro">${svg("exportar")}</span>Baixar planilha</button>
+      <a class="acao" href="#/m/acordo"><span class="icone claro">${svg("acordo")}</span>${ehAprovador() ? "Meus de acordo" : "Aguardando de acordo"}</a>
+      <a class="acao" href="#/m/protheus"><span class="icone claro">${svg("protheus")}</span>Prontas p/ Protheus</a>
     </div>
-    <p class="sub">O robô verifica a caixa prestacaocontasti@ a cada 15 minutos em horário comercial.</p>`;
+
+    <h3 class="secao-titulo">ETAPAS <span>notas em aberto</span></h3>
+    <div class="cartoes">
+      ${cartao("#/m/conferencia", "conferencia", "amarelo", "Em conferência", por("conferencia"), `mais antiga: ${maisAntiga(por("conferencia"))}`)}
+      ${cartao("#/m/acordo", "acordo", "azul", "Aguardando de acordo", por("acordo"), `${brl(soma(por("acordo")))} aguardando`)}
+      ${cartao("#/m/protheus", "protheus", "verde", "Prontas p/ Protheus", por("protheus"), `${brl(soma(por("protheus")))} para lançar`)}
+      ${cartao("#/m/reprovadas", "reprovadas", "vermelho", "Não de acordo", por("reprovadas"), "voltar para conferência")}
+    </div>
+
+    <h3 class="secao-titulo">ATENÇÃO</h3>
+    <div class="cartoes">
+      ${cartao("#/m/atencao?aba=vencidas", "vencidas", "vermelho", "Vencidas", att.vencidas, `${brl(soma(att.vencidas))} em atraso`)}
+      ${cartao("#/m/atencao?aba=vencendo", "vencendo", "laranja", "Vencendo em até 3 dias", att.vencendo, `${brl(soma(att.vencendo))} nos próximos dias`)}
+      ${cartao("#/m/atencao?aba=alertas", "alertas", "amarelo", "Com alertas", att.alertas, "duplicidade, cadastro ou leitura")}
+      ${cartao("#/m/lancadas", "lancadas", "cinza", "NF lançadas", por("lancadas"), `${brl(soma(por("lancadas")))} no total`)}
+    </div>
+    <p class="sub">O robô verifica a caixa prestacaocontasti@ a cada 15 minutos, de segunda a sexta, das 8h às 19h45.</p>`;
+
   $("#form-busca").onsubmit = (e) => {
     e.preventDefault();
-    const p = new URLSearchParams(); if (filtro) p.set("status", filtro);
-    const v = new FormData(e.target).get("q"); if (v) p.set("q", v);
-    location.hash = "#/?" + p.toString();
+    const v = new FormData(e.target).get("q").trim();
+    if (v) location.hash = "#/m/busca?q=" + encodeURIComponent(v);
   };
+  $("#btn-atualizar").onclick = () => telaInicio();
+  $("#btn-exportar2").onclick = () => exportarPlanilha();
+}
+
+/* ------------------------------------------------------------------ módulos */
+MODULOS.busca = { titulo: "Busca", cor: "cinza", oculto: true, desc: "Resultado em todas as notas, de qualquer etapa.",
+  colunas: ["id", "etapa", "prestador", "nfs", "empresa", "valor", "venc", "pc"], botao: () => ["Abrir", "", "abrir"] };
+
+async function telaModulo(chave, params) {
+  const M = MODULOS[chave], q = params.get("q") || "";
+  main.innerHTML = `<p class="sub">Carregando…</p>`;
+  let todas;
+  try { todas = await buscarNotas(); } catch (e) { return (main.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`); }
+
+  let lista, abasHtml = "", mesHtml = "";
+  if (chave === "atencao") {
+    const aba = ATENCAO[params.get("aba")] ? params.get("aba") : "vencidas";
+    const abertas = todas.filter((n) => ABERTAS.includes(n.status));
+    lista = abertas.filter(ATENCAO[aba].f);
+    abasHtml = `<div class="abas">${Object.entries(ATENCAO).map(([k, a]) =>
+      `<a class="${k === aba ? "ativa" : ""}" href="#/m/atencao?aba=${k}">${a.rotulo} <span>${abertas.filter(a.f).length}</span></a>`).join("")}</div>`;
+  } else if (chave === "busca") {
+    lista = todas;
+  } else {
+    lista = todas.filter((n) => n.status === M.status);
+  }
+  if (M.mes) {
+    const meses = [...new Set(lista.map((n) => (n.criado_em || "").slice(0, 7)))].sort().reverse();
+    const mes = params.get("mes") || "";
+    if (mes) lista = lista.filter((n) => (n.criado_em || "").startsWith(mes));
+    mesHtml = `<select id="sel-mes" class="filtro"><option value="">Todos os meses</option>${meses.map((m) =>
+      `<option value="${m}" ${m === mes ? "selected" : ""}>${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}</option>`).join("")}</select>`;
+  }
+  const termo = q.toLowerCase();
+  if (termo) lista = lista.filter((n) => [n.prestador, n.numero, n.empresa, n.pc, n.chamado, n.descricao, n.fornecedor].join(" ").toLowerCase().includes(termo));
+
+  const [rotBotao, clsBotao] = M.botao();
+  main.innerHTML = `
+    <section class="cab-modulo">
+      <span class="icone grande ${M.cor}">${svg(ICONE[chave] ? chave : "busca")}</span>
+      <div class="cab-texto"><h1>${esc(M.titulo)}</h1><p>${esc(M.desc)}</p></div>
+      <div class="cab-numeros"><b>${lista.length}</b><span>${lista.length === 1 ? "nota" : "notas"} · ${brl(soma(lista))}</span></div>
+    </section>
+    ${abasHtml}
+    <div class="barra-modulo">
+      <form id="form-busca" class="busca-hero borda">${svg("busca")}<input name="q" value="${esc(q)}" placeholder="Filtrar por prestador, NFS, PC, chamado…"></form>
+      ${mesHtml}
+    </div>
+    <div class="card tabela-fila" style="padding:0"><table>
+      <tr>${M.colunas.map((c) => `<th class="${COL[c][2] || ""}">${COL[c][0]}</th>`).join("")}<th></th></tr>
+      ${lista.map((n) => `<tr class="link" data-id="${n.id}">${M.colunas.map((c) => `<td class="${COL[c][2] || ""}">${COL[c][1](n)}</td>`).join("")}
+        <td class="nw"><button class="btn ${clsBotao} pequeno" data-id="${n.id}">${rotBotao}</button></td></tr>`).join("")
+        || `<tr><td colspan="${M.colunas.length + 1}" class="vazio">Nada por aqui. ${chave === "conferencia" ? "Quando chegar nota na caixa, ela aparece aqui." : ""}</td></tr>`}
+    </table></div>`;
+
+  $("#form-busca").onsubmit = (e) => {
+    e.preventDefault();
+    const p = new URLSearchParams(params); const v = new FormData(e.target).get("q").trim();
+    v ? p.set("q", v) : p.delete("q");
+    location.hash = `#/m/${chave}?${p}`;
+  };
+  const sm = $("#sel-mes");
+  if (sm) sm.onchange = () => { const p = new URLSearchParams(params); sm.value ? p.set("mes", sm.value) : p.delete("mes"); location.hash = `#/m/${chave}?${p}`; };
+
   main.querySelectorAll("tr.link").forEach((tr) => (tr.onclick = () => (location.hash = `#/nota/${tr.dataset.id}`)));
+  main.querySelectorAll("button[data-id]").forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = Number(b.dataset.id), acao = M.botao()[2];
+    if (acao === "abrir") return (location.hash = `#/nota/${id}`);
+    b.disabled = true;
+    const status = acao === "aprovar" ? "Aprovada" : "Em conferência";
+    const { error } = await sb.from("notas").update(acao === "aprovar" ? { status, comentario: "" } : { status }).eq("id", id);
+    if (error) { b.disabled = false; return aviso("Erro: " + error.message, true); }
+    await evento(id, acao === "aprovar" ? "De acordo" : "Reaberta para conferência");
+    aviso(acao === "aprovar" ? `De acordo registrado na nota #${id}.` : `Nota #${id} voltou para conferência.`);
+    telaModulo(chave, params);
+  }));
 }
 
 /* ------------------------------------------------------------------ nota */
@@ -153,7 +337,7 @@ async function telaNota(id) {
 
   main.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-      <a href="#/" class="btn">← Fila</a>
+      <a href="#/m/${moduloDoStatus(n.status)}" class="btn">← ${esc((MODULOS[moduloDoStatus(n.status)] || {}).titulo || "Voltar")}</a>
       <h1 style="margin:0">Nota #${n.id} · ${esc(n.prestador || "Sem prestador")} ${esc(n.tipo_doc)} ${esc(n.numero)} ${esc(n.empresa)}</h1>
       <span class="tag ${COR[n.status]}">${esc(n.status)}</span>
     </div>
@@ -172,7 +356,7 @@ async function telaNota(id) {
           ${campo("produto", "Produto", n.produto, { lista: "produto" })}
           ${campo("cc", "CC", n.cc, { lista: "cc" })}
           ${campo("conta_contabil", "Conta contábil", n.conta_contabil, { lista: "conta_contabil" })}
-          ${campo("fornecedor", "Fornecedor (cód. Protheus)", n.fornecedor)}
+          ${campo("fornecedor", "Fornecedor (Protheus)", n.fornecedor)}
           ${campo("valor", "Valor (R$)", n.valor, { tipo: "number" })}
           ${campo("numero", "NFS", n.numero, { req: true })}
           ${campo("tipo_doc", "Tipo (nome do arquivo)", n.tipo_doc, { opcoes: [["NF", "NF – Nota fiscal"], ["FT", "FT – Fatura"]] })}

@@ -1,0 +1,11 @@
+# Segredos e dados reais — nunca versionar
+.env
+*.sql.local
+carga_inicial.sql
+usuarios*.csv
+*.xlsx
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

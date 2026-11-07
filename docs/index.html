@@ -8,16 +8,23 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header id="topo" hidden>
-  <span class="marca">Central de Notas</span>
+<aside id="lateral">
+  <div class="logo"><span class="grau">°</span>comm <span class="selo">NOTAS</span></div>
   <nav>
-    <a href="#/">Fila</a>
-    <a href="#/?status=Aguardando aprovação" id="lnk-aprovar">Aguardando de acordo</a>
-    <a href="#/?status=Aprovada">Prontas p/ Protheus</a>
-    <a href="#" id="btn-exportar">Baixar planilha</a>
+    <a href="#/" data-rota=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Início</a>
+    <a href="#/m/atencao" data-rota="atencao"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>Atenção</a>
+    <a href="#/m/conferencia" data-rota="conferencia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10M9 12h10M9 19h10"/><path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg>Em conferência</a>
+    <a href="#/m/acordo" data-rota="acordo"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Aguardando de acordo</a>
+    <a href="#/m/protheus" data-rota="protheus"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>Prontas p/ Protheus</a>
+    <a href="#/m/reprovadas" data-rota="reprovadas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>Não de acordo</a>
+    <a href="#/m/lancadas" data-rota="lancadas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>NF lançadas</a>
+    <a href="#/m/ignoradas" data-rota="ignoradas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 22 12a14 14 0 0 1-3.2 4M6.6 6.6A14 14 0 0 0 2 12s4 7 10 7a9 9 0 0 0 4-.9"/></svg>Ignoradas</a>
+    <div class="secao">GESTÃO</div>
+    <a href="#" id="btn-exportar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Baixar planilha</a>
+    <a href="#" id="btn-sair"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg>Sair</a>
   </nav>
-  <span class="dir"><span id="quem"></span> · <a href="#" id="btn-sair">Sair</a></span>
-</header>
+  <div class="eu"><b id="quem"></b><span id="papel"></span></div>
+</aside>
 
 <div id="avisos"></div>
 <main id="conteudo"></main>
