@@ -1,0 +1,33 @@
+name: Robô da caixa
+
+on:
+  schedule:
+    # a cada 15 min, seg–sex, 8h às 19h45 (horário de Brasília = UTC-3)
+    - cron: "*/15 11-22 * * 1-5"
+  workflow_dispatch:   # botão "Run workflow" para rodar na hora
+
+concurrency:
+  group: robo-caixa
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m worker.robo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          CAIXA_NOTAS: prestacaocontasti@commcenter.com.br
+          SITE_URL: https://tecnologiacomm.github.io/Central_notas/
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
