@@ -49,7 +49,11 @@ class Graph:
             raise RuntimeError(f"Falha no login do Graph: {tok.get('error_description')}")
         h = {"Authorization": f"Bearer {tok['access_token']}", **kw.pop("headers", {})}
         r = self.http.request(metodo, f"{GRAPH}/users/{self.caixa}{caminho}", headers=h, **kw)
-        r.raise_for_status()
+        if r.is_error:
+            raise RuntimeError(
+                f"Graph respondeu {r.status_code} em {metodo} {caminho.split('?')[0]}: {r.text[:500]}\n"
+                f"Permissões no token do app: {permissoes_do_token(tok['access_token']) or 'NENHUMA'} "
+                "(precisa de Mail.ReadWrite e Mail.Send como permissões de APLICATIVO, com consentimento do admin)")
         return r
 
     def mensagens_novas(self, limite: int = 50) -> list[Mensagem]:
@@ -85,6 +89,17 @@ class Graph:
         self._req("POST", "/sendMail", json={"message": {
             "subject": assunto, "body": {"contentType": "HTML", "content": html},
             "toRecipients": [{"emailAddress": {"address": e}} for e in para]}, "saveToSentItems": True})
+
+
+def permissoes_do_token(token: str) -> list[str]:
+    """Lê as permissões (roles) do token — só nomes, nada secreto — para diagnosticar 403."""
+    import json
+    try:
+        corpo = token.split(".")[1]
+        corpo += "=" * (-len(corpo) % 4)
+        return json.loads(base64.urlsafe_b64decode(corpo)).get("roles", [])
+    except Exception:
+        return []
 
 
 def data_iso(v: str | None) -> str | None:
