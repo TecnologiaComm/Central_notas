@@ -1,0 +1,41 @@
+:root{--bg:#f5f6f8;--card:#fff;--txt:#1d2433;--sub:#667085;--borda:#e4e7ec;--pri:#1f3864;--pri2:#2e5597;
+  --verde:#1a7f37;--vermelho:#b42318;--amarelo:#b54708;--azul:#175cd3}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+header{background:var(--pri);color:#fff;padding:0 24px;display:flex;align-items:center;gap:22px;min-height:56px;flex-wrap:wrap}
+header a{color:#dbe4f3;text-decoration:none;font-weight:500}header a:hover{color:#fff}
+header nav{display:flex;gap:18px;flex-wrap:wrap}.marca{font-weight:700;font-size:16px}
+header .dir{margin-left:auto;font-size:13px;color:#dbe4f3}
+main{max-width:1280px;margin:24px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--borda);border-radius:10px;padding:18px;margin-bottom:16px}
+.login{max-width:380px;margin:60px auto}.login label{display:block;margin:12px 0;font-weight:600;font-size:13px}
+.login input{display:block;width:100%;margin-top:4px;padding:9px 10px;border:1px solid #d0d5dd;border-radius:6px;font:inherit}
+h1{font-size:20px;margin:0 0 16px}h2{font-size:15px;margin:0 0 12px;color:var(--pri)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--borda);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;color:var(--sub);font-weight:600;background:#fafbfc}
+tr.link:hover{background:#f0f4fb;cursor:pointer}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap}
+.amarelo{background:#fef0c7;color:var(--amarelo)}.azul{background:#d1e9ff;color:var(--azul)}
+.verde{background:#d1fadf;color:var(--verde)}.vermelho{background:#fee4e2;color:var(--vermelho)}.cinza{background:#eaecf0;color:#475467}
+.btn{display:inline-block;border:1px solid var(--borda);background:#fff;color:var(--txt);padding:8px 14px;border-radius:6px;
+  font:inherit;font-weight:600;cursor:pointer;text-decoration:none}.btn:hover{background:#f2f4f7}.btn:disabled{opacity:.5;cursor:wait}
+.btn.pri{background:var(--pri2);border-color:var(--pri2);color:#fff}.btn.ok{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn.perigo{color:var(--vermelho)}.btn.perigo-cheio{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+.aviso{background:#ecfdf3;border:1px solid #abefc6;color:#067647;padding:10px 14px;border-radius:8px;margin-bottom:16px}
+.aviso.erro,.erro{color:var(--vermelho)}.aviso.erro{background:#fef3f2;border-color:#fecdca}
+.alerta{background:#fffaeb;border:1px solid #fedf89;color:#93370d;padding:8px 12px;border-radius:6px;margin-bottom:6px}
+.grade{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+.grade label{display:block;font-size:12px;color:var(--sub);font-weight:600;margin-bottom:3px}
+.grade input,.grade select,textarea{width:100%;padding:7px 9px;border:1px solid #d0d5dd;border-radius:6px;font:inherit;background:#fff}
+.grade input:disabled,.grade select:disabled{background:#f2f4f7}
+.l2{grid-column:span 2}.l4{grid-column:span 4}
+.col{display:grid;grid-template-columns:2fr 1fr;gap:16px}.sub{color:var(--sub);font-size:12px}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--borda);border-radius:10px;padding:10px 16px;text-decoration:none;color:var(--txt);min-width:150px}
+.kpi b{display:block;font-size:22px}.kpi.ativo{border-color:var(--pri2);box-shadow:0 0 0 2px #d1e0ff}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;align-items:center}
+ul.hist{list-style:none;padding:0;margin:0}ul.hist li{padding:6px 0;border-bottom:1px dashed var(--borda)}
+.busca{padding:7px 10px;border:1px solid #d0d5dd;border-radius:6px;width:min(340px,100%);font:inherit}
+@media(max-width:900px){.col{grid-template-columns:1fr}.grade{grid-template-columns:1fr 1fr}.l4{grid-column:span 2}
+  .tabela-fila{overflow-x:auto}}
+#avisos{position:fixed;top:64px;right:16px;z-index:10;max-width:420px}#avisos .aviso{box-shadow:0 4px 12px rgba(0,0,0,.12)}

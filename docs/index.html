@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Central de Notas – Comm</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topo" hidden>
+  <span class="marca">Central de Notas</span>
+  <nav>
+    <a href="#/">Fila</a>
+    <a href="#/?status=Aguardando aprovação" id="lnk-aprovar">Aguardando de acordo</a>
+    <a href="#/?status=Aprovada">Prontas p/ Protheus</a>
+    <a href="#" id="btn-exportar">Baixar planilha</a>
+  </nav>
+  <span class="dir"><span id="quem"></span> · <a href="#" id="btn-sair">Sair</a></span>
+</header>
+
+<div id="avisos"></div>
+<main id="conteudo"></main>
+
+<!-- Login -->
+<template id="tpl-login">
+  <div class="card login">
+    <h1>Central de Notas</h1>
+    <p class="sub">Prestação de Contas TI · acesso restrito</p>
+    <form id="form-login">
+      <label>E-mail<input type="email" name="email" autocomplete="username" required></label>
+      <label>Senha<input type="password" name="senha" autocomplete="current-password" required></label>
+      <button class="btn pri" style="width:100%">Entrar</button>
+      <p class="erro" id="erro-login"></p>
+    </form>
+  </div>
+</template>
+
+<!-- Troca de senha obrigatória no primeiro acesso -->
+<template id="tpl-senha">
+  <div class="card login">
+    <h1>Crie sua senha</h1>
+    <p class="sub">No primeiro acesso, troque a senha provisória. Use pelo menos 10 caracteres.</p>
+    <form id="form-senha">
+      <label>Nova senha<input type="password" name="s1" minlength="10" autocomplete="new-password" required></label>
+      <label>Repita a nova senha<input type="password" name="s2" minlength="10" autocomplete="new-password" required></label>
+      <button class="btn pri" style="width:100%">Salvar senha</button>
+      <p class="erro" id="erro-senha"></p>
+    </form>
+  </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
