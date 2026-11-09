@@ -25,12 +25,25 @@ function aviso(msg, erro = false) {
 }
 
 /* ------------------------------------------------------------------ login */
+let RECUPERANDO = false;
+
 async function iniciar() {
+  // Link "Criar nova senha" do e-mail: ?recuperar=<token>
+  const token = new URLSearchParams(location.search).get("recuperar");
+  if (token) {
+    history.replaceState(null, "", location.pathname);
+    const { error } = await sb.auth.verifyOtp({ token_hash: token, type: "recovery" });
+    if (error) {
+      telaLogin();
+      return ($("#erro-login").textContent = "Link expirado ou já usado. Peça outro em \"Esqueci minha senha\".");
+    }
+    RECUPERANDO = true;
+  }
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return telaLogin();
   const { data: p } = await sb.from("perfis").select("*").eq("id", session.user.id).single();
   PERFIL = p || { nome: session.user.email, email: session.user.email, papel: "analista", trocar_senha: false };
-  if (PERFIL.trocar_senha) return telaSenha();
+  if (PERFIL.trocar_senha || RECUPERANDO) return telaSenha();
   document.body.classList.add("logado");
   $("#quem").textContent = PERFIL.nome;
   $("#papel").textContent = { admin: "Administrador", aprovador: "Aprovador", analista: "Analista" }[PERFIL.papel] || PERFIL.papel;
@@ -48,11 +61,35 @@ function telaLogin() {
     if (error) return ($("#erro-login").textContent = "E-mail ou senha inválidos.");
     iniciar();
   };
+  $("#lnk-esqueci").onclick = (e) => { e.preventDefault(); telaEsqueci($('[name="email"]', main).value); };
+}
+
+function telaEsqueci(emailDigitado = "") {
+  document.body.classList.remove("logado");
+  main.replaceChildren($("#tpl-esqueci").content.cloneNode(true));
+  $('[name="email"]', main).value = emailDigitado;
+  $("#lnk-voltar").onclick = (e) => { e.preventDefault(); telaLogin(); };
+  $("#form-esqueci").onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    const email = new FormData(e.target).get("email").trim();
+    const { data, error } = await sb.functions.invoke("esqueci-senha", { body: { email } });
+    const msg = $("#msg-esqueci");
+    if (error || !data?.ok) {
+      msg.className = "erro";
+      msg.textContent = data?.mensagem || "Não foi possível enviar agora. Tente de novo em alguns minutos.";
+      btn.disabled = false;
+    } else {
+      msg.className = "aviso";
+      msg.textContent = data.mensagem + " Confira também a caixa de spam. O link vale por 1 hora.";
+    }
+  };
 }
 
 function telaSenha() {
   document.body.classList.remove("logado");
   main.replaceChildren($("#tpl-senha").content.cloneNode(true));
+  if (RECUPERANDO) $("#txt-senha").textContent = "Crie uma nova senha para a Central de Notas. Use pelo menos 10 caracteres.";
   $("#form-senha").onsubmit = async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -60,6 +97,8 @@ function telaSenha() {
     const { error } = await sb.auth.updateUser({ password: f.get("s1") });
     if (error) return ($("#erro-senha").textContent = error.message);
     await sb.from("perfis").update({ trocar_senha: false }).eq("id", PERFIL.id);
+    RECUPERANDO = false;
+    aviso("Senha alterada.");
     iniciar();
   };
 }

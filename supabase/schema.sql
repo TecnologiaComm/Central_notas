@@ -143,7 +143,7 @@ begin
   select email into v_email from public.perfis where id = auth.uid();
   new.atualizado_por := coalesce(v_email, '');
   if new.status in ('Aprovada','Reprovada') and new.status is distinct from old.status then
-    if public.meu_papel() not in ('aprovador','admin') then
+    if coalesce(public.meu_papel(), '') not in ('aprovador','admin') then
       raise exception 'Somente o aprovador pode dar o de acordo';
     end if;
     new.aprovado_por := v_email;
@@ -192,3 +192,18 @@ on conflict (id) do nothing;
 drop policy if exists notas_logados on storage.objects;
 create policy notas_logados on storage.objects for all to authenticated
   using (bucket_id = 'notas') with check (bucket_id = 'notas');
+
+-- ---------- Esqueci minha senha (usada só pela função esqueci-senha, com service role) ----------
+create table if not exists public.pedidos_senha (
+  id bigserial primary key,
+  email text not null,
+  criado_em timestamptz not null default now()
+);
+create index if not exists pedidos_senha_email on public.pedidos_senha (email, criado_em desc);
+alter table public.pedidos_senha enable row level security;
+
+-- ---------- Funções internas fora da API ----------
+revoke execute on function public.controlar_nota() from public, anon, authenticated;
+revoke execute on function public.criar_perfil()   from public, anon, authenticated;
+revoke execute on function public.meu_papel() from public, anon;
+grant  execute on function public.meu_papel() to authenticated;

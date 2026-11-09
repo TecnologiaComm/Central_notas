@@ -39,6 +39,21 @@
       <label>Senha<input type="password" name="senha" autocomplete="current-password" required></label>
       <button class="btn pri" style="width:100%">Entrar</button>
       <p class="erro" id="erro-login"></p>
+      <p style="text-align:center;margin:14px 0 0"><a href="#" id="lnk-esqueci">Esqueci minha senha</a></p>
+    </form>
+  </div>
+</template>
+
+<!-- Esqueci minha senha -->
+<template id="tpl-esqueci">
+  <div class="card login">
+    <h1>Esqueci minha senha</h1>
+    <p class="sub">Digite seu e-mail da Comm. Você vai receber um link da caixa prestacaocontasti@ para criar uma nova senha.</p>
+    <form id="form-esqueci">
+      <label>E-mail<input type="email" name="email" autocomplete="username" placeholder="nome@commcenter.com.br" required></label>
+      <button class="btn pri" style="width:100%">Enviar link</button>
+      <p id="msg-esqueci" class="sub" style="margin-top:12px"></p>
+      <p style="text-align:center;margin:14px 0 0"><a href="#" id="lnk-voltar">Voltar para o login</a></p>
     </form>
   </div>
 </template>
@@ -47,7 +62,7 @@
 <template id="tpl-senha">
   <div class="card login">
     <h1>Crie sua senha</h1>
-    <p class="sub">No primeiro acesso, troque a senha provisória. Use pelo menos 10 caracteres.</p>
+    <p class="sub" id="txt-senha">No primeiro acesso, troque a senha provisória. Use pelo menos 10 caracteres.</p>
     <form id="form-senha">
       <label>Nova senha<input type="password" name="s1" minlength="10" autocomplete="new-password" required></label>
       <label>Repita a nova senha<input type="password" name="s2" minlength="10" autocomplete="new-password" required></label>
